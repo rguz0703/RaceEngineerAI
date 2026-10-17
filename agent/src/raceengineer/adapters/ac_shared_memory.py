@@ -13,8 +13,12 @@ the MIT-licensed C# reader https://github.com/mdjarv/assettocorsasharedmemory
 (Physics.cs, Graphics.cs, StaticInfo.cs). Newer AC builds append fields after the
 ones declared here; that is harmless because we only map and read this prefix.
 
-NOT YET VERIFIED against the real game: offsets, units and signs (for example the
-steering sign) must be confirmed with a raw dump recorded on the PC.
+Checked against a real dump (AC 1.16.4, SM 1.7, Monza, 2026-10-17;
+tests/fixtures/ac_monza_911cup.acraw.gz): strings, status, laps, lap timer, speed
+(matches |velocity|), gear (0 = R, 1 = N), rpm, temperatures and brake bias all
+decode to plausible values, so the offsets are right. Physics updates at ~333 Hz.
+STILL UNVERIFIED: the steering scale and sign (Monza only showed -0.16..0.16)
+and the clutch direction (the car never used it).
 
 Parsing (bytes -> sample) is pure Python and runs on any OS. Only
 ``WindowsSharedMemoryReader`` touches Windows APIs.
@@ -264,6 +268,7 @@ def to_sample(physics: SPageFilePhysics, graphics: SPageFileGraphic, t: float) -
         brake=_clamp(physics.brake, 0.0, 1.0),
         # AC reports clutch as 1.0 released; our model uses 1.0 pressed (unverified).
         clutch=_clamp(1.0 - physics.clutch, 0.0, 1.0),
+        # Scale and sign unverified: is it -1..1 of lock or wheel radians?
         steering=_clamp(physics.steerAngle, -1.0, 1.0),
         gear=physics.gear - 1,
         rpm=float(physics.rpms),
@@ -298,6 +303,33 @@ class SharedMemoryReader(Protocol):
     def close(self) -> None: ...
 
 
+class Pacer:
+    """Keeps a loop at a steady rate by sleeping until the next tick.
+
+    A fixed ``sleep(interval)`` after each iteration adds the loop's own work time
+    to every period: on the PC a 120 Hz recording ran at about 69 Hz. Sleeping
+    until a deadline absorbs that work. If the loop falls behind it resyncs
+    instead of bursting to catch up.
+    """
+
+    def __init__(
+        self, interval: float, clock: Callable[[], float], sleep: Callable[[float], None]
+    ) -> None:
+        self._interval = interval
+        self._clock = clock
+        self._sleep = sleep
+        self._next: float | None = None
+
+    def wait(self) -> None:
+        now = self._clock()
+        self._next = (now if self._next is None else self._next) + self._interval
+        delay = self._next - now
+        if delay > 0:
+            self._sleep(delay)
+        else:
+            self._next = now
+
+
 class ACSharedMemorySource:
     """TelemetrySource for Assetto Corsa.
 
@@ -330,6 +362,7 @@ class ACSharedMemorySource:
         start: float | None = None
         last_packet: int | None = None
         was_live = False
+        pacer = Pacer(self._interval, self._clock, self._sleep)
         while not self._stop.is_set():
             try:
                 snapshot = self._reader.read()
@@ -348,7 +381,7 @@ class ACSharedMemorySource:
                     if start is None:
                         start = now
                     yield to_sample(physics, graphics, now - start)
-            self._sleep(self._interval)
+            pacer.wait()
 
 
 def _status(value: int) -> ACStatus:

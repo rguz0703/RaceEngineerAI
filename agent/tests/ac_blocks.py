@@ -88,3 +88,18 @@ class ScriptedReader:
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeTime:
+    """A clock that only advances when someone sleeps."""
+
+    def __init__(self, start: float = 0.0) -> None:
+        self.now = start
+        self.sleeps: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds

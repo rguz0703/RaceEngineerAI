@@ -2,21 +2,10 @@ import gzip
 from pathlib import Path
 
 import pytest
-from ac_blocks import ScriptedReader, snapshot, static_bytes
+from ac_blocks import FakeTime, ScriptedReader, snapshot, static_bytes
 
 from raceengineer.adapters.ac_raw_dump import MAGIC, RawDumpReader, dump_raw
 from raceengineer.adapters.ac_shared_memory import ACSharedMemorySource, ACStatus, Snapshot
-
-
-class _Clock:
-    def __init__(self, step: float) -> None:
-        self.now = 0.0
-        self.step = step
-
-    def __call__(self) -> float:
-        value = self.now
-        self.now += self.step
-        return value
 
 
 class _ChangingStaticReader(ScriptedReader):
@@ -26,7 +15,8 @@ class _ChangingStaticReader(ScriptedReader):
 
 def _dump(tmp_path: Path, reader: ScriptedReader, seconds: float = 10.0) -> Path:
     path = tmp_path / "dumps" / "test.acraw.gz"
-    dump_raw(reader, path, seconds, clock=_Clock(0.5), sleep=lambda _: None)
+    time = FakeTime()
+    dump_raw(reader, path, seconds, poll_hz=2, clock=time.clock, sleep=time.sleep)
     return path
 
 
@@ -41,7 +31,8 @@ def test_dump_writes_only_changed_frames_and_replays_them(tmp_path: Path) -> Non
     )
     path = tmp_path / "dump.acraw.gz"
 
-    stats = dump_raw(reader, path, seconds=2.5, clock=_Clock(0.5), sleep=lambda _: None)
+    time = FakeTime()
+    stats = dump_raw(reader, path, seconds=2.0, poll_hz=2, clock=time.clock, sleep=time.sleep)
 
     assert stats.frames == 3
     assert stats.static_blocks == 1
@@ -102,7 +93,7 @@ def test_reader_rejects_different_layout(tmp_path: Path) -> None:
 
 
 def test_reader_rejects_unknown_records_and_truncation(tmp_path: Path) -> None:
-    good = _dump(tmp_path, ScriptedReader([snapshot(1)]), seconds=1.0)
+    good = _dump(tmp_path, ScriptedReader([snapshot(1)]), seconds=0.5)
     with gzip.open(good, "rb") as f:
         data = f.read()
     header_end = data.index(b"\n", len(MAGIC)) + 1

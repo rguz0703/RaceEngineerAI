@@ -25,6 +25,7 @@ from raceengineer.adapters.ac_shared_memory import (
     GRAPHICS_SIZE,
     PHYSICS_SIZE,
     STATIC_SIZE,
+    Pacer,
     SharedMemoryReader,
     Snapshot,
 )
@@ -56,7 +57,7 @@ def dump_raw(
     if poll_hz <= 0:
         raise ValueError("poll_hz must be > 0")
     stop = stop if stop is not None else Event()
-    interval = 1.0 / poll_hz
+    pacer = Pacer(1.0 / poll_hz, clock, sleep)
     path.parent.mkdir(parents=True, exist_ok=True)
     frames = statics = 0
     last_static: bytes | None = None
@@ -80,7 +81,7 @@ def dump_raw(
                 _write_record(out, _FRAME, elapsed, snapshot.physics + snapshot.graphics)
                 last_ids = ids
                 frames += 1
-            sleep(interval)
+            pacer.wait()
     return DumpStats(frames=frames, static_blocks=statics, seconds=elapsed)
 
 

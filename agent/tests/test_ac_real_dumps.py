@@ -31,3 +31,31 @@ def test_real_dump_replays_to_plausible_samples(path: Path) -> None:
     assert laps == sorted(laps)
     times = [s.t for s in samples]
     assert times == sorted(times)
+
+
+MONZA = Path(__file__).parent / "fixtures" / "ac_monza_911cup.acraw.gz"
+
+
+@pytest.mark.skipif(not MONZA.exists(), reason="falta el volcado de Monza")
+def test_monza_dump_matches_what_was_driven() -> None:
+    """Recorded 2026-10-17 on the PC: AC 1.16.4, practice at Monza, 30 s with a pause."""
+    reader = RawDumpReader(MONZA)
+    try:
+        source = ACSharedMemorySource(reader, clock=reader.clock, sleep=lambda _: None)
+        info = source.session_info()
+        samples = list(source.samples())
+    finally:
+        reader.close()
+
+    assert (info.track, info.car, info.track_config) == (
+        "monza",
+        "ks_porsche_911_gt3_cup_2017",
+        "",
+    )
+    # 287 paused frames are skipped; only the LIVE ones become samples.
+    assert len(samples) == 4600
+    assert max(s.speed_kmh for s in samples) == pytest.approx(241.9, abs=0.1)
+    assert {s.gear for s in samples} == set(range(0, 7))  # neutral (mid-shift) to 6th
+    # AC's own lap timer advances exactly as the recording clock does.
+    elapsed_ms = samples[-1].lap_time_ms - samples[0].lap_time_ms
+    assert elapsed_ms == pytest.approx((samples[-1].t - samples[0].t) * 1000, abs=1)

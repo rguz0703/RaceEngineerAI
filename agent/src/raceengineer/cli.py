@@ -184,6 +184,12 @@ def _format_ms(ms: int) -> str:
     return f"{minutes}:{rest / 1000:06.3f}"
 
 
+def _print_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
+    widths = [max(len(row[i]) for row in [header, *rows]) for i in range(len(header))]
+    for row in [header, *rows]:
+        print("  ".join(cell.ljust(width) for cell, width in zip(row, widths, strict=True)))
+
+
 def _no_sleep(_seconds: float) -> None:
     pass
 
@@ -197,11 +203,16 @@ def _sessions(db: Path) -> int:
     if not records:
         print("No hay sesiones todavía.")
         return 0
-    print(f"{'ID':>4}  {'Inicio (UTC)':<19}  {'Sim':<6}  {'Circuito':<16}  {'Coche':<12}  Muestras")
-    for r in records:
-        started = r.started_at.strftime("%Y-%m-%d %H:%M:%S")
-        print(
-            f"{r.id:>4}  {started:<19}  {r.info.sim:<6}  {r.info.track:<16}  "
-            f"{r.info.car:<12}  {r.sample_count}"
+    rows = [
+        (
+            str(r.id),
+            r.started_at.strftime("%Y-%m-%d %H:%M:%S"),
+            r.info.sim,
+            r.info.track + (f" ({r.info.track_config})" if r.info.track_config else ""),
+            r.info.car,
+            str(r.sample_count),
         )
+        for r in records
+    ]
+    _print_table(("ID", "Inicio (UTC)", "Sim", "Circuito", "Coche", "Muestras"), rows)
     return 0

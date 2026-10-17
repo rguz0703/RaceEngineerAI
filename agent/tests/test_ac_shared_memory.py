@@ -2,7 +2,14 @@ import ctypes
 from threading import Event
 
 import pytest
-from ac_blocks import ScriptedReader, graphics_bytes, physics_bytes, snapshot, static_bytes
+from ac_blocks import (
+    FakeTime,
+    ScriptedReader,
+    graphics_bytes,
+    physics_bytes,
+    snapshot,
+    static_bytes,
+)
 
 from raceengineer.adapters.ac_shared_memory import (
     GRAPHICS_SIZE,
@@ -11,6 +18,7 @@ from raceengineer.adapters.ac_shared_memory import (
     ACNotRunningError,
     ACSharedMemorySource,
     ACStatus,
+    Pacer,
     SPageFileGraphic,
     SPageFilePhysics,
     SPageFileStatic,
@@ -103,19 +111,9 @@ def test_parsers_accept_longer_blocks_from_newer_versions() -> None:
     assert parse_physics(data).speedKmh == pytest.approx(88.0)
 
 
-class _Clock:
-    def __init__(self) -> None:
-        self.now = 100.0
-
-    def __call__(self) -> float:
-        self.now += 0.01
-        return self.now
-
-
 def _source(reader: ScriptedReader, stop: Event | None = None) -> ACSharedMemorySource:
-    return ACSharedMemorySource(
-        reader, poll_hz=100, stop=stop, clock=_Clock(), sleep=lambda _: None
-    )
+    time = FakeTime(start=100.0)
+    return ACSharedMemorySource(reader, poll_hz=100, stop=stop, clock=time.clock, sleep=time.sleep)
 
 
 def test_emits_only_live_samples_with_new_packet_ids() -> None:
@@ -134,7 +132,7 @@ def test_emits_only_live_samples_with_new_packet_ids() -> None:
 
     assert [s.speed_kmh for s in samples] == [10.0, 50.0]
     assert samples[0].t == 0.0
-    assert samples[1].t == pytest.approx(0.01)
+    assert samples[1].t == pytest.approx(0.04)
 
 
 def test_ends_when_game_returns_to_off_after_being_live() -> None:
@@ -172,3 +170,22 @@ def test_open_live_reader_without_game_explains_error() -> None:
     # On macOS: AC is Windows only. On Windows CI: AC is not running.
     with pytest.raises(ACNotRunningError):
         open_live_reader()
+
+
+def test_pacer_absorbs_loop_work_time() -> None:
+    time = FakeTime()
+    pacer = Pacer(0.01, time.clock, time.sleep)
+    for _ in range(3):
+        time.now += 0.004  # work done by the loop body
+        pacer.wait()
+    assert time.sleeps == pytest.approx([0.01, 0.006, 0.006])
+
+
+def test_pacer_resyncs_when_behind() -> None:
+    time = FakeTime()
+    pacer = Pacer(0.01, time.clock, time.sleep)
+    pacer.wait()
+    time.now += 0.05  # a long stall
+    pacer.wait()
+    pacer.wait()
+    assert time.sleeps == pytest.approx([0.01, 0.01])
