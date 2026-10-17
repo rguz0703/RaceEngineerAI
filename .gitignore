@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node (web)
+node_modules/
+
+# Datos locales de sesiones (las fixtures de tests sí se versionan)
+data/
+*.sqlite
+*.sqlite3
+!agent/tests/fixtures/**
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
