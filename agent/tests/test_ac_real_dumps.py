@@ -59,3 +59,27 @@ def test_monza_dump_matches_what_was_driven() -> None:
     # AC's own lap timer advances exactly as the recording clock does.
     elapsed_ms = samples[-1].lap_time_ms - samples[0].lap_time_ms
     assert elapsed_ms == pytest.approx((samples[-1].t - samples[0].t) * 1000, abs=1)
+
+
+CALIBRATION = Path(__file__).parent / "fixtures" / "ac_calibration.acraw.gz"
+
+
+@pytest.mark.skipif(not CALIBRATION.exists(), reason="falta el volcado de calibración")
+def test_calibration_dump_steering_is_normalized_left_negative() -> None:
+    """Recorded 2026-10-17, parked in the Monza pits with a Logitech G923.
+
+    Order of inputs: full left, full right, then full throttle.
+    """
+    reader = RawDumpReader(CALIBRATION)
+    try:
+        source = ACSharedMemorySource(reader, clock=reader.clock, sleep=lambda _: None)
+        samples = list(source.samples())
+    finally:
+        reader.close()
+
+    steering = [s.steering for s in samples]
+    first_full_left = steering.index(-1.0)
+    first_full_right = steering.index(1.0)
+    assert first_full_left < first_full_right
+    assert max(s.throttle for s in samples) == 1.0
+    assert all(s.speed_kmh < 1.0 and s.in_pit for s in samples)

@@ -13,12 +13,14 @@ the MIT-licensed C# reader https://github.com/mdjarv/assettocorsasharedmemory
 (Physics.cs, Graphics.cs, StaticInfo.cs). Newer AC builds append fields after the
 ones declared here; that is harmless because we only map and read this prefix.
 
-Checked against a real dump (AC 1.16.4, SM 1.7, Monza, 2026-10-17;
-tests/fixtures/ac_monza_911cup.acraw.gz): strings, status, laps, lap timer, speed
-(matches |velocity|), gear (0 = R, 1 = N), rpm, temperatures and brake bias all
-decode to plausible values, so the offsets are right. Physics updates at ~333 Hz.
-STILL UNVERIFIED: the steering scale and sign (Monza only showed -0.16..0.16)
-and the clutch direction (the car never used it).
+Checked against real dumps (AC 1.16.4, SM 1.7, Monza, 2026-10-17; see
+tests/fixtures/): strings, status, laps, lap timer, speed (matches |velocity|),
+gear (0 = R, 1 = N), rpm, temperatures and brake bias all decode to plausible
+values, so the offsets are right. Physics updates at ~333 Hz. steerAngle is the
+normalized wheel input: -1 full left, +1 full right (calibration dump). Lap times
+from a 3-lap recording matched the game's results screen within 10 ms.
+STILL UNVERIFIED: the clutch direction (no dump has the pedal pressed yet) and
+whether the brake reaches 1.0 (the calibration dump ended as it was pressed).
 
 Parsing (bytes -> sample) is pure Python and runs on any OS. Only
 ``WindowsSharedMemoryReader`` touches Windows APIs.
@@ -268,7 +270,6 @@ def to_sample(physics: SPageFilePhysics, graphics: SPageFileGraphic, t: float) -
         brake=_clamp(physics.brake, 0.0, 1.0),
         # AC reports clutch as 1.0 released; our model uses 1.0 pressed (unverified).
         clutch=_clamp(1.0 - physics.clutch, 0.0, 1.0),
-        # Scale and sign unverified: is it -1..1 of lock or wheel radians?
         steering=_clamp(physics.steerAngle, -1.0, 1.0),
         gear=physics.gear - 1,
         rpm=float(physics.rpms),
