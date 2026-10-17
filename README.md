@@ -3,7 +3,7 @@
 Ingeniero de carrera para sim racing: captura telemetría del simulador, analiza
 tus vueltas y te dice dónde y cómo mejorar, en vivo o después de la sesión.
 
-> Estado: **Fase 0** (estructura del proyecto). Todavía no hay integración con
+> Estado: **Fase 1** (modelo de dominio, fuente sintética y grabación en SQLite). Todavía no hay integración con
 > ningún simulador. Ver [docs/architecture.md](docs/architecture.md).
 
 ## Estructura
@@ -22,6 +22,8 @@ Requisitos: [uv](https://docs.astral.sh/uv/) (instala Python 3.12 automáticamen
 cd agent
 uv sync                     # crea el entorno e instala dependencias
 uv run raceengineer --version
+uv run raceengineer record --laps 3   # graba una sesión sintética (sin simulador)
+uv run raceengineer sessions          # lista las sesiones guardadas en data/sessions.sqlite
 uv run pytest               # tests + cobertura
 uv run ruff check .         # lint
 uv run ruff format --check .
