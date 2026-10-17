@@ -9,23 +9,25 @@ Esta guía prepara la PC de juego para grabar telemetría real de Assetto Corsa
 Todos los comandos se escriben en **PowerShell** (menú Inicio → escribe
 "PowerShell" → Enter). Copia una línea, pégala con clic derecho y pulsa Enter.
 
+## 0. Antes de empezar (PC de pruebas: Dell Precision 5810)
+
+- El disco tiene dos sistemas: **arranca en la partición de Windows**, donde está
+  instalado AC. Todo se hace ahí; el grabador debe correr en el mismo Windows
+  que el juego.
+- La GPU (Quadro K620, 2 GB) va justa para AC. Para la primera prueba pon
+  gráficos **bajos** y modo **ventana sin bordes**: así puedes cambiar a
+  PowerShell con Alt+Tab sin que el juego se cuelgue. La CPU (Xeon de 10
+  núcleos) y la RAM (32 GB) sobran para grabar.
+
 ## 1. Instalar las herramientas
 
-Usamos `winget`, el instalador que ya trae Windows 10 (1809 o posterior) y
-Windows 11. Instala tres programas:
+Necesitas tres programas:
 
-- **Git**: descarga y sube el código.
+- **Git**: descarga y sube el código. Ya está instalado en esta PC.
 - **uv**: instala Python 3.12 y las dependencias del proyecto.
 - **GitHub CLI (`gh`)**: inicia sesión en GitHub para poder clonar el repositorio privado.
 
-```powershell
-winget install --id Git.Git -e
-winget install --id astral-sh.uv -e
-winget install --id GitHub.cli -e
-```
-
-Después **cierra PowerShell y ábrelo de nuevo** para que encuentre los
-programas. Comprueba que están instalados:
+Primero comprueba qué tienes:
 
 ```powershell
 git --version
@@ -33,10 +35,24 @@ uv --version
 gh --version
 ```
 
-Si alguno dice "no se reconoce como comando", reinicia la PC y vuelve a probar.
+Instala solo los que digan "no se reconoce como comando":
 
-No hace falta instalar Python a mano: `uv` descarga la versión correcta. Si ya
-tienes otro Python instalado, no pasa nada; no interfiere.
+```powershell
+winget install --id Git.Git -e
+winget install --id astral-sh.uv -e
+winget install --id GitHub.cli -e
+```
+
+Si tienes **GitHub Desktop** pero `git --version` falla, instala también Git con
+la primera línea: GitHub Desktop trae su propio git, pero PowerShell no lo ve.
+
+Después **cierra PowerShell y ábrelo de nuevo** y repite las tres comprobaciones.
+Si alguna sigue fallando, reinicia Windows y vuelve a probar. Si `winget`
+tampoco se reconoce, instala "App Installer" desde Microsoft Store.
+
+**Python:** ya lo tienes instalado, y no estorba. El proyecto no lo usa: `uv`
+descarga su propio Python 3.12 y lo guarda aparte, así que da igual qué versión
+tengas.
 
 ## 2. Iniciar sesión en GitHub
 
