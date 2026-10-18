@@ -6,6 +6,7 @@ import pytest
 
 from raceengineer.adapters.ac_raw_dump import RawDumpReader
 from raceengineer.adapters.ac_shared_memory import ACSharedMemorySource
+from raceengineer.analysis.laps import segment_laps
 
 FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*.acraw.gz"))
 
@@ -83,3 +84,35 @@ def test_calibration_dump_steering_is_normalized_left_negative() -> None:
     assert first_full_left < first_full_right
     assert max(s.throttle for s in samples) == 1.0
     assert all(s.speed_kmh < 1.0 and s.in_pit for s in samples)
+
+
+F3_LAPS = Path(__file__).parent / "fixtures" / "ac_f3_vueltas.acraw.gz"
+
+
+@pytest.mark.skipif(not F3_LAPS.exists(), reason="falta el volcado de vueltas")
+def test_f3_dump_laps_match_the_game() -> None:
+    """Recorded 2026-10-17 at 10 Hz: start parked in the pits (brake, clutch), out lap,
+    clean lap, lap with chicane cuts ending in the pit lane, then a drive-through."""
+    reader = RawDumpReader(F3_LAPS)
+    try:
+        source = ACSharedMemorySource(reader, clock=reader.clock, sleep=lambda _: None)
+        samples = list(source.samples())
+    finally:
+        reader.close()
+
+    laps = segment_laps(samples)
+
+    summary = [
+        (lap.number, lap.time_ms, lap.official, lap.complete, lap.out_lap, lap.in_lap)
+        for lap in laps
+    ]
+    assert summary == [
+        (1, 159_827, True, False, True, False),
+        (2, 132_748, True, True, False, False),
+        (3, 117_793, True, True, False, True),
+        (4, None, False, False, True, False),
+    ]
+    assert [lap.off_track for lap in laps] == [True, False, True, True]
+    # Pedals while parked: AC reports clutch 1.0 released, so ours reads 1.0 pressed.
+    assert max(s.brake for s in samples) == 1.0
+    assert max(s.clutch for s in samples) == 1.0

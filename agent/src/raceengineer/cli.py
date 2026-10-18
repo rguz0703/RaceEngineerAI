@@ -18,7 +18,9 @@ from raceengineer.adapters.ac_shared_memory import (
     SharedMemoryReader,
 )
 from raceengineer.adapters.fake import FakeSource
+from raceengineer.analysis.laps import segment_laps
 from raceengineer.capture.recorder import Recorder
+from raceengineer.domain.models import Lap
 from raceengineer.domain.ports import TelemetrySource
 from raceengineer.storage.sqlite import SqliteSessionRepository
 
@@ -57,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("sessions", help="listar sesiones grabadas")
 
     laps = commands.add_parser(
-        "laps", help="tiempos aproximados por vuelta de una sesión (comprobación rápida)"
+        "laps", help="vueltas de una sesión: tiempo, tipo y si te saliste de pista"
     )
     laps.add_argument("session_id", type=int)
 
@@ -156,11 +158,6 @@ def _dump_raw(args: argparse.Namespace) -> int:
 
 
 def _laps(db: Path, session_id: int) -> int:
-    """Rough check before F3: the last lap timer value seen in each lap.
-
-    It is short of the real lap time by up to one sample interval, and the first
-    and last laps of a recording are usually partial.
-    """
     if not db.exists():
         print(f"No hay sesiones todavía ({db} no existe).")
         return 0
@@ -169,14 +166,30 @@ def _laps(db: Path, session_id: int) -> int:
     if not samples:
         print(f"La sesión {session_id} no tiene muestras.")
         return 1
-    last_time: dict[int, int] = {}
-    for sample in samples:
-        last_time[sample.lap_number] = max(last_time.get(sample.lap_number, 0), sample.lap_time_ms)
-    print("Vuelta  Tiempo (último valor visto)")
-    for lap, ms in last_time.items():
-        print(f"{lap + 1:>6}  {_format_ms(ms)}")
-    print("La primera y la última vuelta suelen estar incompletas.")
+    laps = segment_laps(samples)
+    rows = [
+        (str(lap.number), _lap_time(lap), _lap_kind(lap), "sí" if lap.off_track else "no")
+        for lap in laps
+    ]
+    _print_table(("Vuelta", "Tiempo", "Tipo", "Fuera de pista"), rows)
+    if any(not lap.official and lap.time_ms is not None for lap in laps):
+        print("≈ tiempo estimado (sesión grabada antes de guardar el tiempo oficial del juego)")
     return 0
+
+
+def _lap_time(lap: Lap) -> str:
+    if lap.time_ms is None:
+        return "-"
+    return ("" if lap.official else "≈") + _format_ms(lap.time_ms)
+
+
+def _lap_kind(lap: Lap) -> str:
+    if lap.time_ms is None:
+        return "sin terminar"
+    kinds = [k for k, flag in (("salida", lap.out_lap), ("entrada", lap.in_lap)) if flag]
+    if kinds:
+        return " + ".join(kinds)
+    return "lanzada" if lap.complete else "incompleta"
 
 
 def _format_ms(ms: int) -> str:
@@ -187,7 +200,8 @@ def _format_ms(ms: int) -> str:
 def _print_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
     widths = [max(len(row[i]) for row in [header, *rows]) for i in range(len(header))]
     for row in [header, *rows]:
-        print("  ".join(cell.ljust(width) for cell, width in zip(row, widths, strict=True)))
+        cells = (cell.ljust(width) for cell, width in zip(row, widths, strict=True))
+        print("  ".join(cells).rstrip())
 
 
 def _no_sleep(_seconds: float) -> None:

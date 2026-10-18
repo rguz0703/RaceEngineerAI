@@ -67,6 +67,7 @@ class FakeSource:
         t = 0.0
         lap = 0
         lap_start_t = 0.0
+        last_lap_ms = 0
         pos = 0.0
 
         while lap < self._laps:
@@ -90,6 +91,7 @@ class FakeSource:
                 pos_y=0.0,
                 pos_z=radius * math.sin(angle),
                 in_pit=False,
+                last_lap_ms=last_lap_ms,
             )
 
             t += self._dt
@@ -97,6 +99,7 @@ class FakeSource:
             if pos >= 1.0:
                 pos -= 1.0
                 lap += 1
+                last_lap_ms = round((t - lap_start_t) * 1000)
                 lap_start_t = t
                 lap_factor = 1.0 + rng.uniform(-0.02, 0.02)
 

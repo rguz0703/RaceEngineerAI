@@ -15,7 +15,7 @@ decisión cambia, se actualiza aquí.
 
 | Simulador | Interfaz | Notas |
 |---|---|---|
-| Assetto Corsa | Memoria compartida (`acpmf_physics`, `acpmf_graphics`, `acpmf_static`) | Datos completos. Solo local en Windows. **Elegida para v1. Verificada el 2026-10-17** con AC 1.16.4 (SM 1.7): tiempos de vuelta ±10 ms frente al juego; volante -1 izq. / +1 der. Falta confirmar el embrague y el freno al 100 %. |
+| Assetto Corsa | Memoria compartida (`acpmf_physics`, `acpmf_graphics`, `acpmf_static`) | Datos completos. Solo local en Windows. **Elegida para v1. Verificada el 2026-10-17** con AC 1.16.4 (SM 1.7): tiempos de vuelta ±10 ms frente al juego; volante -1 izq. / +1 der.; freno y embrague llegan a 1.0. AC original no marca vueltas inválidas en la memoria compartida: los cortes se detectan con `numberOfTyresOut`. |
 | Assetto Corsa | UDP Remote Telemetry (puerto 9996) | Menos campos, un cliente. Alternativa para pruebas rápidas. |
 | ACC | Memoria compartida (estructura distinta) | Fase 9+. |
 | ACC | Broadcasting UDP | Sin entradas del piloto; solo complemento. |

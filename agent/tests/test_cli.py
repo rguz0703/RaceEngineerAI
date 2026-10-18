@@ -126,16 +126,40 @@ def test_ctrl_c_handler_sets_stop_and_is_restored() -> None:
     assert signal.getsignal(signal.SIGINT) == previous
 
 
-def test_laps_reports_last_lap_timer(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_laps_lists_segmented_laps(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     db = tmp_path / "s.sqlite"
     assert main(["--db", str(db), "record", "--laps", "2"]) == 0
     capsys.readouterr()
 
     assert main(["--db", str(db), "laps", "1"]) == 0
 
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].split() == ["Vuelta", "Tiempo", "Tipo", "Fuera", "de", "pista"]
+    assert lines[1].split()[2:] == ["lanzada", "no"]
+    assert lines[2].split() == ["2", "-", "sin", "terminar", "no"]
+    assert "≈" not in "".join(lines)
+
+
+def test_laps_marks_estimated_times(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    from raceengineer.adapters.fake import FakeSource
+    from raceengineer.domain.models import SessionInfo
+
+    db = tmp_path / "s.sqlite"
+    # Like a pre-F3 recording that also started mid-lap.
+    samples = [replace(s, last_lap_ms=0) for s in FakeSource(laps=2).samples()][100:]
+    with SqliteSessionRepository(db) as repo:
+        session_id = repo.create_session(SessionInfo("fake", "t", "c"), datetime.now(UTC))
+        repo.append_samples(session_id, samples)
+
+    assert main(["--db", str(db), "laps", str(session_id)]) == 0
+
     out = capsys.readouterr().out
-    assert "     1  0:" in out
-    assert "     2  0:" in out
+    assert "≈0:" in out
+    assert "incompleta" in out
+    assert "tiempo estimado" in out
 
 
 def test_laps_without_data(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
