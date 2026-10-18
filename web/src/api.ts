@@ -95,8 +95,32 @@ export interface Comparison {
   notes: Note[];
 }
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(path);
+export interface Game {
+  state: "unavailable" | "closed" | "off" | "live" | "pause" | "replay" | string;
+  track: string;
+  car: string;
+  message: string;
+}
+
+export interface Recording {
+  available: boolean;
+  state: "idle" | "waiting" | "recording" | "stopping";
+  session_id: number | null;
+  started_at: string | null;
+  sample_count: number;
+  lap: number;
+  lap_time_ms: number;
+  last_lap_ms: number;
+  best_lap_ms: number;
+  speed_kmh: number;
+  in_pit: boolean;
+  message: string;
+  last_session_id: number | null;
+  game: Game;
+}
+
+async function get<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
   if (!response.ok) {
     let detail = `Error ${response.status}`;
     try {
@@ -111,6 +135,9 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
+  recording: () => get<Recording>("/api/recording"),
+  startRecording: () => get<Recording>("/api/recording/start", { method: "POST" }),
+  stopRecording: () => get<Recording>("/api/recording/stop", { method: "POST" }),
   sessions: () => get<Session[]>("/api/sessions"),
   laps: (sessionId: number) => get<SessionLaps>(`/api/sessions/${sessionId}/laps`),
   compare: (params: { session: number; lap: number; refSession?: number; refLap?: number }) => {

@@ -29,8 +29,9 @@ uv run raceengineer sessions          # lista las sesiones guardadas en data/ses
 uv run raceengineer laps 1            # vueltas de la sesión 1: tiempo, tipo, fuera de pista
 uv run raceengineer compare 1 3       # vuelta 3 contra tu mejor vuelta limpia, tramo a tramo
 uv run raceengineer compare 1 3 --ref 2 --csv data/cmp.csv   # contra la vuelta 2, y a CSV
-uv run raceengineer serve             # dashboard en http://127.0.0.1:8000
+uv run raceengineer serve             # dashboard y centro de control (Grabar/Detener) en http://127.0.0.1:8000
 uv run raceengineer serve --lan       # también accesible desde la Mac o el celular
+uv run raceengineer serve --demo      # el botón Grabar usa vueltas simuladas (sin el juego)
 ```
 
 Con Assetto Corsa en pista (solo en Windows, ver [docs/pc-setup.md](docs/pc-setup.md)):

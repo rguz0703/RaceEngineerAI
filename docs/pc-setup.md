@@ -92,13 +92,38 @@ uv run pytest
 Para traer cambios nuevos en el futuro: `git pull` (en la carpeta del proyecto) y
 luego `uv sync` dentro de `agent`.
 
-## 5. Probar con Assetto Corsa
+## 5. Uso diario: grabar desde el dashboard
+
+Desde la versión con "centro de control" ya no hace falta escribir comandos para
+grabar. En la carpeta `agent`:
+
+```powershell
+uv run raceengineer serve --lan
+```
+
+Deja esa ventana abierta y abre el dashboard en el celular o en la Mac
+(`http://<IP-de-la-PC>:8000`, la dirección que muestra la consola):
+
+1. Arriba verás el estado del juego: **cerrado**, **en el menú** o **en pista**.
+2. Pulsa **● Grabar**. Si todavía no estás en pista, el programa espera y
+   arranca solo cuando salgas.
+3. Mientras manejas verás la vuelta, el cronómetro, la última y la mejor.
+4. Pulsa **■ Detener**, o simplemente vuelve al menú de AC: la sesión se guarda
+   y aparece en la lista, lista para comparar.
+
+Si cierras la ventana de `serve` (Ctrl+C) mientras grabas, lo grabado se guarda
+igual.
+
+Para probar el dashboard sin el juego (por ejemplo en la Mac):
+`uv run raceengineer serve --demo` genera vueltas simuladas al pulsar Grabar.
+
+## 6. Comandos manuales (pruebas)
 
 La memoria compartida de AC solo existe **mientras estás en pista** (en el menú
 principal no). Pon AC en modo ventana o ventana sin bordes para poder cambiar a
 PowerShell con Alt+Tab sin problemas.
 
-### 5a. Volcado crudo (para fixtures)
+### 6a. Volcado crudo (para fixtures)
 
 1. Abre AC, elige coche y circuito, y sal a pista (práctica).
 2. Con Alt+Tab vuelve a PowerShell (en la carpeta `agent`) y ejecuta:
@@ -112,7 +137,7 @@ PowerShell con Alt+Tab sin problemas.
 4. Al terminar verás algo como
    `Volcado guardado en data\dumps\ac-20261016-201500.acraw.gz: ...`.
 
-### 5b. Grabar vueltas
+### 6b. Grabar vueltas desde la consola
 
 1. Con el coche en pista, ejecuta:
 
@@ -136,7 +161,7 @@ PowerShell con Alt+Tab sin problemas.
    lanzada (completa) o sin terminar (cortada con Ctrl+C), y "Fuera de pista"
    marca si en algún momento sacaste más de dos llantas.
 
-### 5c. Comparar vueltas
+### 6c. Comparar vueltas
 
 ```powershell
 uv run raceengineer compare N 3
@@ -147,7 +172,7 @@ total, 10 tramos de pista y los lugares donde más tiempo pierdes. Con
 `--ref 2` eliges la referencia, y con `--csv data\cmp.csv` guardas los datos
 metro a metro para graficarlos en Excel.
 
-### 5d. Dashboard web
+### 6d. Dashboard web
 
 ```powershell
 uv run raceengineer serve --lan
@@ -182,7 +207,7 @@ una nueva para verlos.
 - La grabación termina sola: AC volvió al menú (estado OFF). Es lo esperado.
 - Durante una repetición (replay) o en pausa no se graban muestras.
 
-## 6. Enviar los resultados al Mac
+## 7. Enviar los resultados al Mac
 
 Copia y pega en el chat la salida de `sessions` y de `laps`, junto con los tiempos
 que viste en el juego.

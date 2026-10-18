@@ -102,3 +102,29 @@ class ComparisonOut(BaseModel):
     reference_car: CarOut | None
     """None for laps recorded before the car state was stored."""
     notes: list[NoteOut]
+
+
+class GameOut(BaseModel):
+    state: str
+    """unavailable, closed, off (menu), live, pause, replay."""
+    track: str
+    car: str
+    message: str
+
+
+class RecordingOut(BaseModel):
+    available: bool
+    """False when the server was started without recording support."""
+    state: str
+    session_id: int | None
+    started_at: datetime | None
+    sample_count: int
+    lap: int
+    lap_time_ms: int
+    last_lap_ms: int
+    best_lap_ms: int
+    speed_kmh: float
+    in_pit: bool
+    message: str
+    last_session_id: int | None
+    game: GameOut

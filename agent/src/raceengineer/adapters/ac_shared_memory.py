@@ -423,6 +423,8 @@ class ACSharedMemorySource:
         self._stop = stop if stop is not None else Event()
         self._clock = clock
         self._sleep = sleep
+        self.game_status = ACStatus.OFF
+        """Last status read from the game (for live displays)."""
 
     def session_info(self) -> SessionInfo:
         try:
@@ -444,6 +446,7 @@ class ACSharedMemorySource:
                 return
             graphics = parse_graphics(snapshot.graphics)
             status = _status(graphics.status)
+            self.game_status = status
             if status is ACStatus.OFF and was_live:
                 return
             if status is ACStatus.LIVE:
@@ -456,6 +459,36 @@ class ACSharedMemorySource:
                         start = now
                     yield to_sample(physics, graphics, now - start, tyre_radius)
             pacer.wait()
+
+
+@dataclass(frozen=True, slots=True)
+class GameProbe:
+    """A quick look at whether AC is running and what it is doing."""
+
+    state: str
+    """"unavailable" (not Windows), "closed", or an ACStatus name in lower case."""
+    track: str = ""
+    car: str = ""
+    message: str = ""
+
+
+def probe_game(open_reader: Callable[[], SharedMemoryReader]) -> GameProbe:
+    try:
+        reader = open_reader()
+    except ACNotRunningError as exc:
+        state = "closed" if sys.platform == "win32" else "unavailable"
+        return GameProbe(state=state, message=str(exc))
+    try:
+        graphics = parse_graphics(reader.peek().graphics)
+        info = session_info_from_static(parse_static(reader.read_static()))
+    except EOFError:
+        return GameProbe(state="closed")
+    finally:
+        reader.close()
+    status = _status(graphics.status)
+    if status is ACStatus.OFF:
+        return GameProbe(state="off")
+    return GameProbe(state=status.name.lower(), track=info.track, car=info.car)
 
 
 def _status(value: int) -> ACStatus:

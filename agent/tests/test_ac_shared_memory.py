@@ -222,3 +222,23 @@ def test_session_info_includes_compound_from_graphics() -> None:
         graphics.tyreCompound[i] = ord(ch)
     info = session_info_from_static(parse_static(static_bytes()), graphics)
     assert info.tyre_compound == "Slick Cup (H)"
+
+
+def test_probe_game_states() -> None:
+    from raceengineer.adapters.ac_shared_memory import probe_game
+
+    def opener(*snapshots: object) -> object:
+        return lambda: ScriptedReader(list(snapshots), static=static_bytes(track="spa"))  # type: ignore[arg-type]
+
+    live = probe_game(opener(snapshot(1)))  # type: ignore[arg-type]
+    assert (live.state, live.track) == ("live", "spa")
+    assert probe_game(opener(snapshot(1, ACStatus.OFF))).state == "off"  # type: ignore[arg-type]
+    assert probe_game(opener(snapshot(1, ACStatus.PAUSE))).state == "pause"  # type: ignore[arg-type]
+    assert probe_game(opener()).state == "closed"  # type: ignore[arg-type]
+
+    def missing() -> ScriptedReader:
+        raise ACNotRunningError("no")
+
+    gone = probe_game(missing)
+    assert gone.state in ("closed", "unavailable")
+    assert gone.message == "no"

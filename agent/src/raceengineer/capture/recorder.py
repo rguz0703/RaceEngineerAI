@@ -37,14 +37,28 @@ class Recorder:
         self._batch_size = batch_size
         self._clock = clock
 
-    def record(self, stop: Event | None = None) -> RecordingResult:
+    def record(
+        self,
+        stop: Event | None = None,
+        on_sample: Callable[[TelemetrySample], None] | None = None,
+        on_start: Callable[[int], None] | None = None,
+    ) -> RecordingResult:
+        """Record until the source ends or ``stop`` is set.
+
+        ``on_start`` gets the new session id; ``on_sample`` sees every sample
+        (for live status), so it must be quick.
+        """
         session_id = self._repository.create_session(self._source.session_info(), self._clock())
+        if on_start is not None:
+            on_start(session_id)
         batch: list[TelemetrySample] = []
         count = 0
         try:
             for sample in self._source.samples():
                 batch.append(sample)
                 count += 1
+                if on_sample is not None:
+                    on_sample(sample)
                 if len(batch) >= self._batch_size:
                     self._repository.append_samples(session_id, batch)
                     batch = []
