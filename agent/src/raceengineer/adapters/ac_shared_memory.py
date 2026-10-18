@@ -255,6 +255,7 @@ def session_info_from_static(static: SPageFileStatic) -> SessionInfo:
         track=decode_wstr(static.track),
         car=decode_wstr(static.carModel),
         track_config=decode_wstr(static.trackConfiguration),
+        track_length_m=static.trackSPlineLength,
     )
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     track        TEXT NOT NULL,
     track_config TEXT NOT NULL,
     car          TEXT NOT NULL,
+    track_length_m REAL NOT NULL DEFAULT 0,
     started_at   TEXT NOT NULL,
     ended_at     TEXT
 );
@@ -68,9 +69,16 @@ class SqliteSessionRepository:
     def create_session(self, info: SessionInfo, started_at: datetime) -> int:
         with self._conn:
             cursor = self._conn.execute(
-                "INSERT INTO sessions (sim, track, track_config, car, started_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (info.sim, info.track, info.track_config, info.car, started_at.isoformat()),
+                "INSERT INTO sessions (sim, track, track_config, car, track_length_m, started_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    info.sim,
+                    info.track,
+                    info.track_config,
+                    info.car,
+                    info.track_length_m,
+                    started_at.isoformat(),
+                ),
             )
         session_id = cursor.lastrowid
         assert session_id is not None
@@ -98,19 +106,29 @@ class SqliteSessionRepository:
     def list_sessions(self) -> list[SessionRecord]:
         rows = self._conn.execute(
             "SELECT s.id, s.sim, s.track, s.track_config, s.car, s.started_at, s.ended_at, "
+            "s.track_length_m, "
             "(SELECT COUNT(*) FROM samples WHERE session_id = s.id) "
             "FROM sessions s ORDER BY s.id"
         ).fetchall()
         return [
             SessionRecord(
                 id=row[0],
-                info=SessionInfo(sim=row[1], track=row[2], track_config=row[3], car=row[4]),
+                info=SessionInfo(
+                    sim=row[1],
+                    track=row[2],
+                    track_config=row[3],
+                    car=row[4],
+                    track_length_m=row[7],
+                ),
                 started_at=datetime.fromisoformat(row[5]),
                 ended_at=datetime.fromisoformat(row[6]) if row[6] else None,
-                sample_count=row[7],
+                sample_count=row[8],
             )
             for row in rows
         ]
+
+    def get_session(self, session_id: int) -> SessionRecord | None:
+        return next((r for r in self.list_sessions() if r.id == session_id), None)
 
     def load_samples(self, session_id: int) -> list[TelemetrySample]:
         rows = self._conn.execute(_SELECT_SAMPLES, (session_id,)).fetchall()
@@ -146,6 +164,7 @@ _MIGRATIONS = [
     ALTER TABLE samples ADD COLUMN last_lap_ms REAL NOT NULL DEFAULT 0;
     ALTER TABLE samples ADD COLUMN tyres_out REAL NOT NULL DEFAULT 0;
     """,
+    "ALTER TABLE sessions ADD COLUMN track_length_m REAL NOT NULL DEFAULT 0;",
 ]
 
 

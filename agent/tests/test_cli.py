@@ -168,3 +168,68 @@ def test_laps_without_data(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     SqliteSessionRepository(db).close()
     assert main(["--db", str(db), "laps", "1"]) == 1
     assert "no tiene muestras" in capsys.readouterr().out
+
+
+def _fake_db(tmp_path: Path, laps: int = 3) -> Path:
+    db = tmp_path / "s.sqlite"
+    assert main(["--db", str(db), "record", "--laps", str(laps), "--seed", "3"]) == 0
+    return db
+
+
+def test_compare_against_best_lap(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    db = _fake_db(tmp_path)
+    capsys.readouterr()
+    csv_path = tmp_path / "cmp.csv"
+
+    assert main(["--db", str(db), "compare", "1", "2", "--csv", str(csv_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "Vuelta 2" in out and "contra vuelta 1" in out
+    assert "Diferencia:" in out
+    assert "Tramo" in out
+    assert csv_path.exists()
+
+
+def test_compare_with_explicit_reference_in_other_session(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = _fake_db(tmp_path)
+    assert main(["--db", str(db), "record", "--laps", "3", "--seed", "9"]) == 0
+    capsys.readouterr()
+
+    assert main(["--db", str(db), "compare", "1", "1", "--ref", "2", "--ref-session", "2"]) == 0
+
+    out = capsys.readouterr().out
+    assert "contra vuelta 2" in out and "sesión 2" in out
+
+
+def test_compare_errors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--db", str(tmp_path / "none.sqlite"), "compare", "1", "1"]) == 1
+    db = _fake_db(tmp_path, laps=2)
+    assert main(["--db", str(db), "compare", "5", "1"]) == 1
+    assert main(["--db", str(db), "compare", "1", "1", "--ref-session", "9"]) == 1
+    assert main(["--db", str(db), "compare", "1", "2"]) == 1  # lap 2 never finished
+    assert main(["--db", str(db), "compare", "1", "1"]) == 1  # no other finished lap
+    out = capsys.readouterr().out
+    assert "no existe" in out.lower()
+    assert "--ref" in out
+
+
+def test_compare_warns_about_partial_laps(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from datetime import UTC, datetime
+
+    from raceengineer.adapters.fake import FakeSource
+    from raceengineer.domain.models import SessionInfo
+
+    db = tmp_path / "s.sqlite"
+    samples = list(FakeSource(laps=3).samples())[200:]  # starts mid-lap
+    with SqliteSessionRepository(db) as repo:
+        sid = repo.create_session(
+            SessionInfo("fake", "t", "c", track_length_m=2000), datetime.now(UTC)
+        )
+        repo.append_samples(sid, samples)
+
+    assert main(["--db", str(db), "compare", str(sid), "1", "--ref", "2"]) == 0
+    assert "Ojo" in capsys.readouterr().out

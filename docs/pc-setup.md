@@ -136,6 +136,17 @@ PowerShell con Alt+Tab sin problemas.
    lanzada (completa) o sin terminar (cortada con Ctrl+C), y "Fuera de pista"
    marca si en algún momento sacaste más de dos llantas.
 
+### 5c. Comparar vueltas
+
+```powershell
+uv run raceengineer compare N 3
+```
+
+Compara la vuelta 3 de la sesión `N` con tu mejor vuelta limpia: diferencia
+total, 10 tramos de pista y los lugares donde más tiempo pierdes. Con
+`--ref 2` eliges la referencia, y con `--csv data\cmp.csv` guardas los datos
+metro a metro para graficarlos en Excel.
+
 ### Si algo falla
 
 - `No se encontró la memoria compartida de Assetto Corsa`: AC no está en pista.
