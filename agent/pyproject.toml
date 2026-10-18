@@ -3,13 +3,17 @@ name = "raceengineer"
 version = "0.0.1"
 description = "RaceEngineerAI agent: telemetry capture, storage, analysis and API."
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.143.3",
+    "uvicorn>=0.54.0",
+]
 
 [project.scripts]
 raceengineer = "raceengineer.cli:main"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.13.1",
     "mypy>=1.11",
     "pytest>=8.3",
     "pytest-cov>=5.0",

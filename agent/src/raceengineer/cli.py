@@ -1,7 +1,9 @@
 """Command-line entry point."""
 
 import argparse
+import logging
 import signal
+import socket
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -20,7 +22,7 @@ from raceengineer.adapters.ac_shared_memory import (
 )
 from raceengineer.adapters.fake import FakeSource
 from raceengineer.analysis.compare import compare_laps, lap_trace, summarize, write_csv
-from raceengineer.analysis.laps import segment_laps
+from raceengineer.analysis.laps import best_clean_lap, segment_laps
 from raceengineer.capture.recorder import Recorder
 from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
 from raceengineer.domain.ports import TelemetrySource
@@ -76,6 +78,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compare.add_argument("--csv", type=Path, help="exportar la comparación metro a metro")
 
+    serve = commands.add_parser("serve", help="abrir el dashboard web")
+    serve.add_argument("--port", type=int, default=8000, help="puerto (por defecto 8000)")
+    serve.add_argument(
+        "--lan",
+        action="store_true",
+        help="permitir abrirlo desde otros equipos de tu red (Mac, celular)",
+    )
+
     dump = commands.add_parser(
         "dump-raw", help="guardar los bytes crudos de la memoria compartida de Assetto Corsa"
     )
@@ -102,6 +112,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _laps(args.db, args.session_id)
         if args.command == "compare":
             return _compare(args)
+        if args.command == "serve":
+            return _serve(args)
         if args.command == "dump-raw":
             return _dump_raw(args)
     except ACNotRunningError as exc:
@@ -214,7 +226,7 @@ def _compare(args: argparse.Namespace) -> int:
         ref_lap = _find_lap(reference.laps, args.ref)
     else:
         exclude = target_lap if reference is target else None
-        ref_lap = _best_clean_lap(reference.laps, exclude)
+        ref_lap = best_clean_lap(reference.laps, exclude)
     if ref_lap is None or ref_lap.time_ms is None:
         print("No hay vuelta de referencia terminada. Indica una con --ref.")
         return 1
@@ -287,18 +299,6 @@ def _find_lap(laps: Sequence[Lap], number: int) -> Lap | None:
     return next((lap for lap in laps if lap.number == number), None)
 
 
-def _best_clean_lap(laps: Sequence[Lap], exclude: Lap | None) -> Lap | None:
-    candidates = [
-        lap
-        for lap in laps
-        if lap.time_ms is not None
-        and lap.complete
-        and not (lap.off_track or lap.out_lap or lap.in_lap)
-        and lap != exclude
-    ]
-    return min(candidates, key=lambda lap: lap.time_ms or 0, default=None)
-
-
 def _lap_time(lap: Lap) -> str:
     if lap.time_ms is None:
         return "-"
@@ -324,6 +324,50 @@ def _print_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
     for row in [header, *rows]:
         cells = (cell.ljust(width) for cell, width in zip(row, widths, strict=True))
         print("  ".join(cells).rstrip())
+
+
+def _serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from raceengineer.api.app import create_app
+
+    host = "0.0.0.0" if args.lan else "127.0.0.1"
+    print(f"Dashboard en http://127.0.0.1:{args.port}")
+    if args.lan:
+        print(f"Desde otro equipo de tu red: http://{_lan_ip()}:{args.port}")
+        print("Escribe la dirección completa con http:// (no https), o el navegador no conectará.")
+        print("Si Windows pregunta por el firewall, permite el acceso en redes privadas.")
+    print("Pulsa Ctrl+C para cerrarlo.")
+    logging.getLogger("uvicorn.error").addFilter(_HttpsHint())
+    uvicorn.run(create_app(args.db), host=host, port=args.port, log_level="warning")
+    return 0
+
+
+class _HttpsHint(logging.Filter):
+    """Replace uvicorn's "Invalid HTTP request" (usually a browser trying https://) with a hint."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._shown = False
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "Invalid HTTP request" not in record.getMessage():
+            return True
+        if not self._shown:
+            self._shown = True
+            print("Un navegador intentó entrar con https://. Escribe la dirección con http://")
+        return False
+
+
+def _lan_ip() -> str:
+    """This machine's address on the local network (no packets are sent)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect(("192.0.2.1", 9))  # TEST-NET address; connect() only picks a route
+            address: str = probe.getsockname()[0]
+        except OSError:
+            address = "127.0.0.1"
+    return address
 
 
 def _no_sleep(_seconds: float) -> None:

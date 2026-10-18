@@ -147,6 +147,25 @@ total, 10 tramos de pista y los lugares donde más tiempo pierdes. Con
 `--ref 2` eliges la referencia, y con `--csv data\cmp.csv` guardas los datos
 metro a metro para graficarlos en Excel.
 
+### 5d. Dashboard web
+
+```powershell
+uv run raceengineer serve --lan
+```
+
+Muestra dos direcciones:
+
+- `http://127.0.0.1:8000`: ábrela en el navegador de la PC.
+- `http://192.168.x.x:8000`: ábrela en la Mac o el celular, conectados al mismo
+  Wi-Fi o red de casa.
+
+La primera vez, Windows pregunta si permites el acceso por el firewall: marca
+**Redes privadas** y acepta. Sin `--lan`, el dashboard solo se ve desde la propia
+PC. Para cerrarlo, pulsa Ctrl+C.
+
+En el dashboard eliges una sesión, ves sus vueltas y pulsas **Comparar** para ver
+las gráficas metro a metro contra tu mejor vuelta limpia.
+
 ### Si algo falla
 
 - `No se encontró la memoria compartida de Assetto Corsa`: AC no está en pista.

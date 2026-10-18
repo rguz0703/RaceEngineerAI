@@ -128,3 +128,16 @@ def _estimated_time(last: TelemetrySample, following: TelemetrySample) -> int:
     """Timer before the line + time between the two samples - timer after the line."""
     gap_ms = (following.t - last.t) * 1000
     return max(0, round(last.lap_time_ms + gap_ms - following.lap_time_ms))
+
+
+def best_clean_lap(laps: Sequence[Lap], exclude: Lap | None = None) -> Lap | None:
+    """Fastest finished lap driven from line to line, on track, without the pits."""
+    candidates = [
+        lap
+        for lap in laps
+        if lap.time_ms is not None
+        and lap.complete
+        and not (lap.off_track or lap.out_lap or lap.in_lap)
+        and lap != exclude
+    ]
+    return min(candidates, key=lambda lap: lap.time_ms or 0, default=None)
