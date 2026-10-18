@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type Lap } from "../api";
 import { Status } from "../components/Status";
-import { dateTime, lapKind, lapTime, prettyName } from "../format";
+import { dateTime, lapKind, lapTime, prettyName, simName } from "../format";
 import { href } from "../route";
 import { useAsync } from "../useAsync";
 
@@ -14,7 +14,11 @@ export function SessionView({ id }: { id: number }) {
           <a className="back" href={href({ page: "sessions" })}>
             ← Sesiones
           </a>
-          <h1>{prettyName(session.track)}</h1>
+          <span className="sim">{simName(session.sim)}</span>
+          <h1>
+            {prettyName(session.track)}
+            {session.track_config && <span className="muted"> · {prettyName(session.track_config)}</span>}
+          </h1>
           <p className="muted">
             {prettyName(session.car)} · {dateTime(session.started_at)}
             {session.track_length_m > 0 && ` · ${Math.round(session.track_length_m).toLocaleString("es")} m`}

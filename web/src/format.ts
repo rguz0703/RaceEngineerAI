@@ -34,3 +34,12 @@ export function prettyName(id: string): string {
 export function dateTime(iso: string): string {
   return new Date(iso).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" });
 }
+
+const SIM_NAMES: Record<string, string> = {
+  assetto_corsa: "Assetto Corsa",
+  fake: "Simulación de prueba",
+};
+
+export function simName(sim: string): string {
+  return SIM_NAMES[sim] ?? prettyName(sim);
+}

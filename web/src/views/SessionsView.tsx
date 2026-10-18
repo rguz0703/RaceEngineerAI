@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { Status } from "../components/Status";
-import { dateTime, prettyName } from "../format";
+import { dateTime, prettyName, simName } from "../format";
 import { href } from "../route";
 import { useAsync } from "../useAsync";
 
@@ -20,6 +20,7 @@ export function SessionsView() {
               {sessions.map((s) => (
                 <li key={s.id}>
                   <a className="card" href={href({ page: "session", id: s.id })}>
+                    <span className="sim">{simName(s.sim)}</span>
                     <span className="card-title">
                       {prettyName(s.track)}
                       {s.track_config && <span className="muted"> · {prettyName(s.track_config)}</span>}

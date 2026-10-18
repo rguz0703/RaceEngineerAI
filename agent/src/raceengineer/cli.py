@@ -1,6 +1,7 @@
 """Command-line entry point."""
 
 import argparse
+import logging
 import signal
 import socket
 from collections.abc import Callable, Iterator, Sequence
@@ -334,10 +335,28 @@ def _serve(args: argparse.Namespace) -> int:
     print(f"Dashboard en http://127.0.0.1:{args.port}")
     if args.lan:
         print(f"Desde otro equipo de tu red: http://{_lan_ip()}:{args.port}")
+        print("Escribe la dirección completa con http:// (no https), o el navegador no conectará.")
         print("Si Windows pregunta por el firewall, permite el acceso en redes privadas.")
     print("Pulsa Ctrl+C para cerrarlo.")
+    logging.getLogger("uvicorn.error").addFilter(_HttpsHint())
     uvicorn.run(create_app(args.db), host=host, port=args.port, log_level="warning")
     return 0
+
+
+class _HttpsHint(logging.Filter):
+    """Replace uvicorn's "Invalid HTTP request" (usually a browser trying https://) with a hint."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._shown = False
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if "Invalid HTTP request" not in record.getMessage():
+            return True
+        if not self._shown:
+            self._shown = True
+            print("Un navegador intentó entrar con https://. Escribe la dirección con http://")
+        return False
 
 
 def _lan_ip() -> str:

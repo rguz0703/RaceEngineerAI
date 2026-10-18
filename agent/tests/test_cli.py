@@ -272,3 +272,17 @@ def test_lan_ip_falls_back_without_network(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr(socket, "socket", NoRoute)
     assert cli._lan_ip() == "127.0.0.1"
+
+
+def test_https_attempts_become_a_single_hint(capsys: pytest.CaptureFixture[str]) -> None:
+    import logging
+
+    hint = cli._HttpsHint()
+
+    def record(message: str) -> logging.LogRecord:
+        return logging.LogRecord("uvicorn.error", logging.WARNING, "", 0, message, None, None)
+
+    assert hint.filter(record("Invalid HTTP request received.")) is False
+    assert hint.filter(record("Invalid HTTP request received.")) is False
+    assert hint.filter(record("Something else")) is True
+    assert capsys.readouterr().out.count("http://") == 1
