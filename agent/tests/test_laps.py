@@ -110,3 +110,48 @@ def test_counter_reset_is_not_a_line_crossing() -> None:
 
 def test_empty_recording() -> None:
     assert segment_laps([]) == []
+
+
+def test_read_with_timer_reset_before_counter_bump() -> None:
+    # Seen on the PC: the lap timer is zeroed one read before the lap counter moves.
+    samples = [
+        _s(0.0, 1, 0),
+        _s(138.45, 1, 138_450),
+        _s(138.464, 1, 5),  # timer reset, counter still 1
+        _s(138.478, 2, 19),
+        _s(150.0, 2, 11_541),
+    ]
+
+    laps = segment_laps(samples)
+
+    assert [(lap.number, lap.start, lap.end) for lap in laps] == [(2, 0, 2), (3, 2, 5)]
+    assert laps[0].time_ms == 138_459
+    assert laps[0].complete and laps[1].start == 2
+
+
+def test_read_with_counter_bump_before_timer_reset() -> None:
+    samples = [
+        _s(0.0, 1, 0),
+        _s(138.45, 1, 138_450),
+        _s(138.464, 2, 138_464),  # counter moved, timer not reset yet
+        _s(138.478, 2, 10),
+        _s(150.0, 2, 11_532),
+    ]
+
+    laps = segment_laps(samples)
+
+    assert [(lap.number, lap.start, lap.end) for lap in laps] == [(2, 0, 3), (3, 3, 5)]
+    assert laps[0].time_ms == 138_468
+
+
+def test_counter_bump_with_stale_official_time_is_still_read() -> None:
+    samples = [
+        _s(0.0, 1, 0, last_lap_ms=150_000),
+        _s(138.45, 1, 138_450, last_lap_ms=150_000),
+        _s(138.464, 1, 5, last_lap_ms=150_000),
+        _s(138.478, 2, 19, last_lap_ms=138_459),
+    ]
+
+    [lap, _] = segment_laps(samples)
+
+    assert (lap.time_ms, lap.official) == (138_459, True)
