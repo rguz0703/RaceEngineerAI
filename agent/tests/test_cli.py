@@ -72,7 +72,8 @@ def test_record_from_ac(
 
     assert main(["--db", str(db), "record", "--source", "ac", "--poll-hz", "1000"]) == 0
 
-    assert "5 muestras" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "5 muestras" in out and "vueltas terminadas" in out
     assert readers[0].closed
     assert main(["--db", str(db), "sessions"]) == 0
     assert "magione" in capsys.readouterr().out

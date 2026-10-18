@@ -4,7 +4,7 @@ from collections.abc import Iterator, Sequence
 from datetime import datetime
 from typing import Protocol
 
-from raceengineer.domain.models import SessionInfo, SessionRecord, TelemetrySample
+from raceengineer.domain.models import Lap, LapSignals, SessionInfo, SessionRecord, TelemetrySample
 
 
 class TelemetrySource(Protocol):
@@ -35,4 +35,16 @@ class SessionRepository(Protocol):
 
     def get_session(self, session_id: int) -> SessionRecord | None: ...
 
-    def load_samples(self, session_id: int) -> list[TelemetrySample]: ...
+    def load_samples(
+        self, session_id: int, start: int = 0, end: int | None = None
+    ) -> list[TelemetrySample]:
+        """Samples in recording order; start/end select a range of positions."""
+        ...
+
+    def load_lap_signals(self, session_id: int) -> list[LapSignals]: ...
+
+    def save_laps(self, session_id: int, laps: Sequence[Lap]) -> None: ...
+
+    def load_laps(self, session_id: int) -> list[Lap] | None:
+        """Stored laps, or None if never indexed or stale."""
+        ...

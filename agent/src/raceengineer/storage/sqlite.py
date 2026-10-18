@@ -6,11 +6,27 @@ from dataclasses import astuple, fields
 from datetime import datetime
 from pathlib import Path
 
-from raceengineer.domain.models import SessionInfo, SessionRecord, TelemetrySample
+from raceengineer.domain.models import Lap, LapSignals, SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
+
+_LAPS_TABLE = """
+CREATE TABLE IF NOT EXISTS laps (
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    number     INTEGER NOT NULL,
+    start_seq  INTEGER NOT NULL,
+    end_seq    INTEGER NOT NULL,
+    time_ms    INTEGER,
+    official   INTEGER NOT NULL,
+    complete   INTEGER NOT NULL,
+    out_lap    INTEGER NOT NULL,
+    in_lap     INTEGER NOT NULL,
+    off_track  INTEGER NOT NULL,
+    PRIMARY KEY (session_id, start_seq)
+) WITHOUT ROWID;
+"""
 
 _SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS sessions (
@@ -22,9 +38,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     track_length_m REAL NOT NULL DEFAULT 0,
     tyre_compound TEXT NOT NULL DEFAULT '',
     started_at   TEXT NOT NULL,
-    ended_at     TEXT
+    ended_at     TEXT,
+    laps_sample_count INTEGER
 );
 
+{_LAPS_TABLE}
 CREATE TABLE IF NOT EXISTS samples (
     session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     seq        INTEGER NOT NULL,
@@ -39,8 +57,16 @@ _INSERT_SAMPLE = (
 )
 
 _SELECT_SAMPLES = (
-    f"SELECT {', '.join(_SAMPLE_COLUMNS)} FROM samples WHERE session_id = ? ORDER BY seq"
+    f"SELECT {', '.join(_SAMPLE_COLUMNS)} FROM samples "
+    "WHERE session_id = ? AND seq >= ? AND seq < ? ORDER BY seq"
 )
+
+_LAP_SIGNAL_COLUMNS = list(LapSignals._fields)
+_SELECT_LAP_SIGNALS = (
+    f"SELECT {', '.join(_LAP_SIGNAL_COLUMNS)} FROM samples WHERE session_id = ? ORDER BY seq"
+)
+
+_LAP_COLUMNS = "number, start_seq, end_seq, time_ms, official, complete, out_lap, in_lap, off_track"
 
 
 class SqliteSessionRepository:
@@ -134,9 +160,74 @@ class SqliteSessionRepository:
     def get_session(self, session_id: int) -> SessionRecord | None:
         return next((r for r in self.list_sessions() if r.id == session_id), None)
 
-    def load_samples(self, session_id: int) -> list[TelemetrySample]:
-        rows = self._conn.execute(_SELECT_SAMPLES, (session_id,)).fetchall()
+    def load_samples(
+        self, session_id: int, start: int = 0, end: int | None = None
+    ) -> list[TelemetrySample]:
+        """Samples seq start..end-1 (all of them by default)."""
+        stop = end if end is not None else 2**62
+        rows = self._conn.execute(_SELECT_SAMPLES, (session_id, start, stop)).fetchall()
         return [_sample_from_row(row) for row in rows]
+
+    def load_lap_signals(self, session_id: int) -> list[LapSignals]:
+        rows = self._conn.execute(_SELECT_LAP_SIGNALS, (session_id,)).fetchall()
+        return [
+            LapSignals(t, int(lap), int(lap_ms), int(last), bool(pit), int(out))
+            for t, lap, lap_ms, last, pit, out in rows
+        ]
+
+    def save_laps(self, session_id: int, laps: Sequence[Lap]) -> None:
+        """Store the session's laps, valid while no samples are added."""
+        with self._conn:
+            self._conn.execute("DELETE FROM laps WHERE session_id = ?", (session_id,))
+            self._conn.executemany(
+                f"INSERT INTO laps (session_id, {_LAP_COLUMNS}) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        session_id,
+                        lap.number,
+                        lap.start,
+                        lap.end,
+                        lap.time_ms,
+                        lap.official,
+                        lap.complete,
+                        lap.out_lap,
+                        lap.in_lap,
+                        lap.off_track,
+                    )
+                    for lap in laps
+                ],
+            )
+            self._conn.execute(
+                "UPDATE sessions SET laps_sample_count = ? WHERE id = ?",
+                (self._sample_count(session_id), session_id),
+            )
+
+    def load_laps(self, session_id: int) -> list[Lap] | None:
+        """The stored laps, or None if never indexed or samples were added since."""
+        row = self._conn.execute(
+            "SELECT laps_sample_count FROM sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+        if row is None or row[0] is None or row[0] != self._sample_count(session_id):
+            return None
+        rows = self._conn.execute(
+            f"SELECT {_LAP_COLUMNS} FROM laps WHERE session_id = ? ORDER BY start_seq",
+            (session_id,),
+        ).fetchall()
+        return [
+            Lap(
+                number=number,
+                start=start,
+                end=end,
+                time_ms=time_ms,
+                official=bool(official),
+                complete=bool(complete),
+                out_lap=bool(out_lap),
+                in_lap=bool(in_lap),
+                off_track=bool(off_track),
+            )
+            for number, start, end, time_ms, official, complete, out_lap, in_lap, off_track in rows
+        ]
 
     def _sample_count(self, session_id: int) -> int:
         row = self._conn.execute(
@@ -172,8 +263,12 @@ _MIGRATIONS = [
     "ALTER TABLE sessions ADD COLUMN tyre_compound TEXT NOT NULL DEFAULT '';\n"
     + "\n".join(
         f"ALTER TABLE samples ADD COLUMN {name} REAL NOT NULL DEFAULT 0;"
-        for name in _SAMPLE_COLUMNS[_SAMPLE_COLUMNS.index("tyres_out") + 1 :]
+        # Exactly the columns v4 introduced; later fields get their own migrations.
+        for name in _SAMPLE_COLUMNS[
+            _SAMPLE_COLUMNS.index("tyres_out") + 1 : _SAMPLE_COLUMNS.index("fuel") + 1
+        ]
     ),
+    "ALTER TABLE sessions ADD COLUMN laps_sample_count INTEGER;\n" + _LAPS_TABLE,
 ]
 
 
