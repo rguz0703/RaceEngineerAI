@@ -4,6 +4,7 @@ import argparse
 import logging
 import signal
 import socket
+import time
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,13 +19,19 @@ from raceengineer.adapters.ac_raw_dump import RawDumpReader, dump_raw
 from raceengineer.adapters.ac_shared_memory import (
     ACNotRunningError,
     ACSharedMemorySource,
+    ACStatus,
+    GameProbe,
     SharedMemoryReader,
+    parse_graphics,
+    probe_game,
 )
 from raceengineer.adapters.fake import FakeSource
 from raceengineer.analysis import lap_index
 from raceengineer.analysis.compare import compare_laps, lap_trace, summarize, write_csv
 from raceengineer.analysis.laps import best_clean_lap
+from raceengineer.capture.realtime import RealtimeSource
 from raceengineer.capture.recorder import Recorder
+from raceengineer.capture.service import RecordingService, SourceUnavailableError
 from raceengineer.domain.models import Lap, SessionInfo
 from raceengineer.domain.ports import TelemetrySource
 from raceengineer.storage.sqlite import SqliteSessionRepository
@@ -85,6 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--lan",
         action="store_true",
         help="permitir abrirlo desde otros equipos de tu red (Mac, celular)",
+    )
+    serve.add_argument(
+        "--demo",
+        action="store_true",
+        help="el botón Grabar usa datos simulados en tiempo real (para probar sin el juego)",
     )
 
     dump = commands.add_parser(
@@ -165,9 +177,10 @@ def _record(args: argparse.Namespace) -> int:
             if reader is not None:
                 reader.close()
     finished = sum(lap.time_ms is not None for lap in laps)
+    laps_text = "1 vuelta terminada" if finished == 1 else f"{finished} vueltas terminadas"
     print(
         f"Sesión {result.session_id} grabada: {result.sample_count} muestras, "
-        f"{finished} vueltas terminadas, en {args.db}"
+        f"{laps_text}, en {args.db}"
     )
     return 0
 
@@ -348,8 +361,44 @@ def _serve(args: argparse.Namespace) -> int:
         print("Si Windows pregunta por el firewall, permite el acceso en redes privadas.")
     print("Pulsa Ctrl+C para cerrarlo.")
     logging.getLogger("uvicorn.error").addFilter(_HttpsHint())
-    uvicorn.run(create_app(args.db), host=host, port=args.port, log_level="warning")
+    if args.demo:
+        print("Modo demo: el botón Grabar genera vueltas simuladas, sin el juego.")
+        recorder = RecordingService(args.db, _demo_source)
+        probe = _demo_probe
+    else:
+        recorder = RecordingService(args.db, _ac_source)
+        probe = _ac_probe
+    app = create_app(args.db, recorder=recorder, probe=probe)
+    uvicorn.run(app, host=host, port=args.port, log_level="warning")
     return 0
+
+
+def _ac_source(stop: Event) -> tuple[TelemetrySource, Callable[[], None]]:
+    """Open AC only once the car is on track, so the session gets the right car and track."""
+    try:
+        reader = open_ac_reader()
+    except ACNotRunningError as exc:
+        raise SourceUnavailableError(str(exc)) from exc
+    if parse_graphics(reader.peek().graphics).status != ACStatus.LIVE:
+        reader.close()
+        raise SourceUnavailableError("Assetto Corsa está abierto: sal a pista para empezar.")
+    return ACSharedMemorySource(reader, stop=stop), reader.close
+
+
+def _ac_probe() -> GameProbe:
+    return probe_game(open_ac_reader)
+
+
+def _demo_source(stop: Event) -> tuple[TelemetrySource, Callable[[], None]]:
+    return RealtimeSource(FakeSource(laps=20, seed=int(time.time())), stop=stop), _no_close
+
+
+def _demo_probe() -> GameProbe:
+    return GameProbe(state="live", track="synthetic_oval", car="fake_gt3", message="Modo demo")
+
+
+def _no_close() -> None:
+    pass
 
 
 class _HttpsHint(logging.Filter):

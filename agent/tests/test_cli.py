@@ -287,3 +287,51 @@ def test_https_attempts_become_a_single_hint(capsys: pytest.CaptureFixture[str])
     assert hint.filter(record("Invalid HTTP request received.")) is False
     assert hint.filter(record("Something else")) is True
     assert capsys.readouterr().out.count("http://") == 1
+
+
+def test_ac_source_waits_until_on_track(monkeypatch: pytest.MonkeyPatch) -> None:
+    from threading import Event
+
+    from raceengineer.adapters.ac_shared_memory import ACSharedMemorySource, ACStatus
+    from raceengineer.capture.service import SourceUnavailableError
+
+    def not_running() -> ScriptedReader:
+        raise ACNotRunningError("AC no está abierto")
+
+    monkeypatch.setattr(cli, "open_ac_reader", not_running)
+    with pytest.raises(SourceUnavailableError, match="no está abierto"):
+        cli._ac_source(Event())
+
+    menu = ScriptedReader([snapshot(1, ACStatus.OFF)])
+    monkeypatch.setattr(cli, "open_ac_reader", lambda: menu)
+    with pytest.raises(SourceUnavailableError, match="sal a pista"):
+        cli._ac_source(Event())
+    assert menu.closed
+
+    on_track = ScriptedReader([snapshot(1)])
+    monkeypatch.setattr(cli, "open_ac_reader", lambda: on_track)
+    source, close = cli._ac_source(Event())
+    assert isinstance(source, ACSharedMemorySource)
+    close()
+    assert on_track.closed
+
+
+def test_demo_source_and_probes(monkeypatch: pytest.MonkeyPatch) -> None:
+    from threading import Event
+
+    source, close = cli._demo_source(Event())
+    assert source.session_info().sim == "fake"
+    close()
+    assert cli._demo_probe().state == "live"
+    monkeypatch.setattr(cli, "open_ac_reader", lambda: ScriptedReader([snapshot(1)]))
+    assert cli._ac_probe().state == "live"
+
+
+def test_serve_demo_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import uvicorn
+
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+    assert main(["--db", str(tmp_path / "s.sqlite"), "serve", "--demo"]) == 0
+    assert "Modo demo" in capsys.readouterr().out

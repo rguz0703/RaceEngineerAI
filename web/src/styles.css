@@ -62,6 +62,10 @@ code {
 }
 
 .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -680,4 +684,127 @@ tr.changed td:first-child::after {
 .chip.more {
   align-self: flex-start;
   margin-left: 0;
+}
+
+.control {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 4px 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control.rec {
+  border-color: var(--lose);
+}
+
+.control-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.control-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+
+.dot.ready {
+  background: var(--gain);
+}
+
+.dot.rec {
+  background: var(--lose);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot.rec {
+    animation: none;
+  }
+}
+
+.control-live {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.control-live .stat {
+  padding: 8px 10px;
+}
+
+.control-live .stat-value {
+  font-size: 1.15rem;
+}
+
+@media (max-width: 560px) {
+  .control-live {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.control-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rec-button {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+}
+
+.rec-button.start {
+  background: var(--lose);
+}
+
+.rec-button.stop {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.rec-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.rec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--lose);
+}
+
+.rec-pill .dot {
+  width: 9px;
+  height: 9px;
 }

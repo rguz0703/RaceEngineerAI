@@ -1,11 +1,14 @@
 """FastAPI application: recorded sessions, laps and lap comparisons, plus the dashboard."""
 
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from raceengineer.adapters.ac_shared_memory import GameProbe
 from raceengineer.analysis import lap_index
 from raceengineer.analysis.car import CarSummary, summarize_car
 from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
@@ -15,14 +18,17 @@ from raceengineer.api.schemas import (
     CarOut,
     ChannelsOut,
     ComparisonOut,
+    GameOut,
     LapOut,
     LapRef,
     NoteOut,
+    RecordingOut,
     SegmentOut,
     SessionLapsOut,
     SessionOut,
     TyreOut,
 )
+from raceengineer.capture.service import RecordingService, RecordingState, RecordingStatus
 from raceengineer.domain.models import Lap, SessionRecord, TelemetrySample
 from raceengineer.storage.sqlite import SqliteSessionRepository
 
@@ -35,8 +41,68 @@ class _Session:
     laps: list[Lap]
 
 
-def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
-    app = FastAPI(title="RaceEngineerAI", version="0.1")
+def create_app(
+    db_path: Path,
+    static_dir: Path | None = STATIC_DIR,
+    recorder: RecordingService | None = None,
+    probe: Callable[[], GameProbe] | None = None,
+) -> FastAPI:
+    """``recorder`` enables start/stop from the dashboard; ``probe`` reports the game's state."""
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        yield
+        if recorder is not None:
+            # Closing the server finishes the recording cleanly (data is kept).
+            recorder.stop(wait=True)
+
+    app = FastAPI(title="RaceEngineerAI", version="0.1", lifespan=lifespan)
+
+    def recording_out() -> RecordingOut:
+        status = recorder.status() if recorder is not None else RecordingStatus()
+        if status.state in (RecordingState.RECORDING, RecordingState.STOPPING):
+            game = GameOut(state=status.game_status or "live", track="", car="", message="")
+        elif probe is not None:
+            found = probe()
+            game = GameOut(
+                state=found.state, track=found.track, car=found.car, message=found.message
+            )
+        else:
+            game = GameOut(state="unavailable", track="", car="", message="")
+        return RecordingOut(
+            available=recorder is not None,
+            state=status.state.value,
+            session_id=status.session_id,
+            started_at=status.started_at,
+            sample_count=status.sample_count,
+            lap=status.lap,
+            lap_time_ms=status.lap_time_ms,
+            last_lap_ms=status.last_lap_ms,
+            best_lap_ms=status.best_lap_ms,
+            speed_kmh=status.speed_kmh,
+            in_pit=status.in_pit,
+            message=status.message,
+            last_session_id=status.last_session_id,
+            game=game,
+        )
+
+    @app.get("/api/recording")
+    def recording_status() -> RecordingOut:
+        return recording_out()
+
+    @app.post("/api/recording/start")
+    def recording_start() -> RecordingOut:
+        if recorder is None:
+            raise HTTPException(409, "Este servidor no puede grabar (se abrió sin grabadora)")
+        recorder.start()
+        return recording_out()
+
+    @app.post("/api/recording/stop")
+    def recording_stop() -> RecordingOut:
+        if recorder is None:
+            raise HTTPException(409, "Este servidor no puede grabar (se abrió sin grabadora)")
+        recorder.stop(wait=True)
+        return recording_out()
 
     def load(session_id: int) -> _Session:
         if not db_path.exists():
