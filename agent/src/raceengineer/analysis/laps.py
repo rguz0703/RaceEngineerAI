@@ -1,8 +1,27 @@
 """Splits a recording into laps."""
 
 from collections.abc import Sequence
+from typing import Protocol
 
-from raceengineer.domain.models import Lap, TelemetrySample
+from raceengineer.domain.models import Lap
+
+
+class LapSignal(Protocol):
+    """What lap detection reads from each sample (TelemetrySample or LapSignals)."""
+
+    @property
+    def t(self) -> float: ...
+    @property
+    def lap_number(self) -> int: ...
+    @property
+    def lap_time_ms(self) -> int: ...
+    @property
+    def last_lap_ms(self) -> int: ...
+    @property
+    def in_pit(self) -> bool: ...
+    @property
+    def tyres_out(self) -> int: ...
+
 
 START_TOLERANCE_MS = 1000
 """A lap whose first sample shows at most this much on the lap timer was recorded
@@ -13,7 +32,7 @@ OFF_TRACK_TYRES = 3
 """Wheels outside the track limits that count as leaving the track."""
 
 
-def segment_laps(samples: Sequence[TelemetrySample]) -> list[Lap]:
+def segment_laps(samples: Sequence[LapSignal]) -> list[Lap]:
     """Group samples into laps using the game's lap counter and lap timer.
 
     A new lap starts when the lap counter changes, or when the lap timer jumps
@@ -51,7 +70,7 @@ def segment_laps(samples: Sequence[TelemetrySample]) -> list[Lap]:
     return laps
 
 
-def _lap_numbers(samples: Sequence[TelemetrySample]) -> list[int]:
+def _lap_numbers(samples: Sequence[LapSignal]) -> list[int]:
     """The lap each sample belongs to, repairing reads taken mid-update at the line.
 
     AC resets the lap timer and bumps the lap counter in separate writes, so a
@@ -91,15 +110,15 @@ def _lap_numbers(samples: Sequence[TelemetrySample]) -> list[int]:
 _GLITCH_WINDOW_S = 1.0
 
 
-def _timer_reset(prev: TelemetrySample, cur: TelemetrySample) -> bool:
+def _timer_reset(prev: LapSignal, cur: LapSignal) -> bool:
     return cur.lap_time_ms + START_TOLERANCE_MS < prev.lap_time_ms
 
 
-def _just_started(sample: TelemetrySample) -> bool:
+def _just_started(sample: LapSignal) -> bool:
     return sample.lap_time_ms <= START_TOLERANCE_MS
 
 
-def _lap_bounds(samples: Sequence[TelemetrySample], numbers: list[int]) -> list[tuple[int, int]]:
+def _lap_bounds(samples: Sequence[LapSignal], numbers: list[int]) -> list[tuple[int, int]]:
     bounds = []
     start = 0
     for i in range(1, len(samples)):
@@ -113,7 +132,7 @@ def _lap_bounds(samples: Sequence[TelemetrySample], numbers: list[int]) -> list[
 
 
 def _official_time(
-    samples: Sequence[TelemetrySample], start: int, end: int, previous_last_lap_ms: int
+    samples: Sequence[LapSignal], start: int, end: int, previous_last_lap_ms: int
 ) -> int | None:
     """The game's last-lap time, read from the first samples after the line."""
     for sample in samples[start:end]:
@@ -124,7 +143,7 @@ def _official_time(
     return None
 
 
-def _estimated_time(last: TelemetrySample, following: TelemetrySample) -> int:
+def _estimated_time(last: LapSignal, following: LapSignal) -> int:
     """Timer before the line + time between the two samples - timer after the line."""
     gap_ms = (following.t - last.t) * 1000
     return max(0, round(last.lap_time_ms + gap_ms - following.lap_time_ms))

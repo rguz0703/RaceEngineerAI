@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import NamedTuple
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,17 @@ class TelemetrySample:
     engine_brake: int = 0
     fuel: float = 0.0
     """Litres."""
+
+
+class LapSignals(NamedTuple):
+    """The few channels lap detection needs, so long sessions load quickly."""
+
+    t: float
+    lap_number: int
+    lap_time_ms: int
+    last_lap_ms: int
+    in_pit: bool
+    tyres_out: int
 
 
 @dataclass(frozen=True, slots=True)

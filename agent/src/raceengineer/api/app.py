@@ -6,10 +6,11 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from raceengineer.analysis import lap_index
 from raceengineer.analysis.car import CarSummary, summarize_car
 from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
 from raceengineer.analysis.diagnosis import diagnose, lap_data
-from raceengineer.analysis.laps import best_clean_lap, segment_laps
+from raceengineer.analysis.laps import best_clean_lap
 from raceengineer.api.schemas import (
     CarOut,
     ChannelsOut,
@@ -31,7 +32,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 @dataclass(frozen=True, slots=True)
 class _Session:
     record: SessionRecord
-    samples: list[TelemetrySample]
     laps: list[Lap]
 
 
@@ -45,8 +45,11 @@ def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
             record = repository.get_session(session_id)
             if record is None:
                 raise HTTPException(404, f"No existe la sesión {session_id}")
-            samples = repository.load_samples(session_id)
-        return _Session(record=record, samples=samples, laps=segment_laps(samples))
+            return _Session(record=record, laps=lap_index.session_laps(repository, session_id))
+
+    def load_lap(session: _Session, lap: Lap) -> tuple[list[TelemetrySample], Lap]:
+        with SqliteSessionRepository(db_path) as repository:
+            return lap_index.load_lap(repository, session.record.id, lap)
 
     @app.get("/api/sessions")
     def list_sessions() -> list[SessionOut]:
@@ -87,20 +90,23 @@ def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
             if best is None:
                 raise HTTPException(404, "No hay vuelta de referencia terminada; elige una")
             reference_lap = best
-        target_trace = lap_trace(target.samples, target_lap, target.record.info.track_length_m)
+        # Only the two laps' samples are read, whatever the session length.
+        target_samples, target_lap = load_lap(target, target_lap)
+        reference_samples, reference_lap = load_lap(reference, reference_lap)
+        target_trace = lap_trace(target_samples, target_lap, target.record.info.track_length_m)
         reference_trace = lap_trace(
-            reference.samples, reference_lap, reference.record.info.track_length_m
+            reference_samples, reference_lap, reference.record.info.track_length_m
         )
         try:
             comparison = compare_laps(target_trace, reference_trace, step_m=step_m)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         segments = summarize(comparison)
-        target_car = summarize_car(target.samples, target_lap)
-        reference_car = summarize_car(reference.samples, reference_lap)
+        target_car = summarize_car(target_samples, target_lap)
+        reference_car = summarize_car(reference_samples, reference_lap)
         notes = diagnose(
-            lap_data(target.samples, target_lap, target_trace.length_m),
-            lap_data(reference.samples, reference_lap, reference_trace.length_m),
+            lap_data(target_samples, target_lap, target_trace.length_m),
+            lap_data(reference_samples, reference_lap, reference_trace.length_m),
             segments,
             target_car,
         )

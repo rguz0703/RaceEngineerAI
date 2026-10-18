@@ -21,10 +21,11 @@ from raceengineer.adapters.ac_shared_memory import (
     SharedMemoryReader,
 )
 from raceengineer.adapters.fake import FakeSource
+from raceengineer.analysis import lap_index
 from raceengineer.analysis.compare import compare_laps, lap_trace, summarize, write_csv
-from raceengineer.analysis.laps import best_clean_lap, segment_laps
+from raceengineer.analysis.laps import best_clean_lap
 from raceengineer.capture.recorder import Recorder
-from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
+from raceengineer.domain.models import Lap, SessionInfo
 from raceengineer.domain.ports import TelemetrySource
 from raceengineer.storage.sqlite import SqliteSessionRepository
 
@@ -158,10 +159,16 @@ def _record(args: argparse.Namespace) -> int:
         try:
             with SqliteSessionRepository(args.db) as repository:
                 result = Recorder(source, repository).record(stop)
+                # Index the laps now so the dashboard opens the session instantly.
+                laps = lap_index.session_laps(repository, result.session_id)
         finally:
             if reader is not None:
                 reader.close()
-    print(f"Sesión {result.session_id} grabada: {result.sample_count} muestras en {args.db}")
+    finished = sum(lap.time_ms is not None for lap in laps)
+    print(
+        f"Sesión {result.session_id} grabada: {result.sample_count} muestras, "
+        f"{finished} vueltas terminadas, en {args.db}"
+    )
     return 0
 
 
@@ -189,11 +196,10 @@ def _laps(db: Path, session_id: int) -> int:
         print(f"No hay sesiones todavía ({db} no existe).")
         return 0
     with SqliteSessionRepository(db) as repository:
-        samples = repository.load_samples(session_id)
-    if not samples:
+        laps = lap_index.session_laps(repository, session_id)
+    if not laps:
         print(f"La sesión {session_id} no tiene muestras.")
         return 1
-    laps = segment_laps(samples)
     rows = [
         (str(lap.number), _lap_time(lap), _lap_kind(lap), "sí" if lap.off_track else "no")
         for lap in laps
@@ -210,10 +216,14 @@ def _compare(args: argparse.Namespace) -> int:
         return 1
     ref_session = args.ref_session if args.ref_session is not None else args.session_id
     with SqliteSessionRepository(args.db) as repository:
-        target = _load_session(repository, args.session_id)
-        reference = (
-            target if ref_session == args.session_id else _load_session(repository, ref_session)
-        )
+        return _compare_in(repository, args, ref_session)
+
+
+def _compare_in(
+    repository: SqliteSessionRepository, args: argparse.Namespace, ref_session: int
+) -> int:
+    target = _load_session(repository, args.session_id)
+    reference = target if ref_session == args.session_id else _load_session(repository, ref_session)
     if target is None or reference is None:
         print(f"No existe la sesión {args.session_id if target is None else ref_session}.")
         return 1
@@ -231,10 +241,11 @@ def _compare(args: argparse.Namespace) -> int:
         print("No hay vuelta de referencia terminada. Indica una con --ref.")
         return 1
 
-    length = target.info.track_length_m
+    target_samples, target_local = lap_index.load_lap(repository, args.session_id, target_lap)
+    reference_samples, reference_local = lap_index.load_lap(repository, ref_session, ref_lap)
     comparison = compare_laps(
-        lap_trace(target.samples, target_lap, length),
-        lap_trace(reference.samples, ref_lap, reference.info.track_length_m),
+        lap_trace(target_samples, target_local, target.info.track_length_m),
+        lap_trace(reference_samples, reference_local, reference.info.track_length_m),
     )
     total = comparison.delta_s[-1]
     print(
@@ -283,7 +294,6 @@ def _compare(args: argparse.Namespace) -> int:
 @dataclass(frozen=True, slots=True)
 class _LoadedSession:
     info: SessionInfo
-    samples: list[TelemetrySample]
     laps: list[Lap]
 
 
@@ -291,8 +301,7 @@ def _load_session(repository: SqliteSessionRepository, session_id: int) -> _Load
     record = repository.get_session(session_id)
     if record is None:
         return None
-    samples = repository.load_samples(session_id)
-    return _LoadedSession(info=record.info, samples=samples, laps=segment_laps(samples))
+    return _LoadedSession(info=record.info, laps=lap_index.session_laps(repository, session_id))
 
 
 def _find_lap(laps: Sequence[Lap], number: int) -> Lap | None:
