@@ -36,3 +36,32 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+  web:
+    name: web (build is up to date)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check and build
+        run: npm run build
+
+      # The dashboard is served from the Python package, so the committed build
+      # must match the sources (the PC only runs `git pull`, never npm).
+      - name: Committed build matches sources
+        run: |
+          git status --porcelain -- ../agent/src/raceengineer/api/static
+          test -z "$(git status --porcelain -- ../agent/src/raceengineer/api/static)" || {
+            echo "Run 'npm run build' in web/ and commit agent/src/raceengineer/api/static"; exit 1; }

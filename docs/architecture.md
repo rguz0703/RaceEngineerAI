@@ -103,7 +103,7 @@ Electron) mostrando la misma interfaz web; publicación en Steam.
 | F2 | Adaptador AC memoria compartida + volcador crudo | Sesión real grabada → fixture | **Sí** |
 | F3 | Segmentación de vueltas | Tiempos = juego (±10 ms) con fixtures | No |
 | F4 | Comparación de vueltas + informe CLI | Tests numéricos | No |
-| F5 | API + dashboard web (local y remoto) | Checklist manual + tests | Parcial |
+| F5 | API + dashboard web (local y remoto). F5a: sesiones grabadas; F5b: en vivo | Checklist manual + tests | Parcial |
 | F6 | Curvas, frenadas, coasting, consistencia | Casos sintéticos + vueltas reales | No |
 | F7 | Recomendaciones por reglas | Test por regla | No |
 | F8 | Coach en vivo (overlay, luego voz) | Latencia medida | Sí |

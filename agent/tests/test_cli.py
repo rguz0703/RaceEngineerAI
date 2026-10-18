@@ -233,3 +233,42 @@ def test_compare_warns_about_partial_laps(
 
     assert main(["--db", str(db), "compare", str(sid), "1", "--ref", "2"]) == 0
     assert "Ojo" in capsys.readouterr().out
+
+
+def test_serve_starts_uvicorn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import uvicorn
+
+    calls: list[tuple[str, int]] = []
+
+    def fake_run(app: object, host: str, port: int, log_level: str) -> None:
+        calls.append((host, port))
+
+    monkeypatch.setattr(uvicorn, "run", fake_run)
+
+    assert main(["--db", str(tmp_path / "s.sqlite"), "serve", "--port", "8123"]) == 0
+    assert main(["--db", str(tmp_path / "s.sqlite"), "serve", "--lan"]) == 0
+
+    assert calls == [("127.0.0.1", 8123), ("0.0.0.0", 8000)]
+    out = capsys.readouterr().out
+    assert "http://127.0.0.1:8123" in out
+    assert "Desde otro equipo de tu red: http://" in out
+
+
+def test_lan_ip_falls_back_without_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    class NoRoute:
+        def __init__(self, *_: object) -> None: ...
+
+        def __enter__(self) -> "NoRoute":
+            return self
+
+        def __exit__(self, *_: object) -> None: ...
+
+        def connect(self, _address: object) -> None:
+            raise OSError("no route")
+
+    import socket
+
+    monkeypatch.setattr(socket, "socket", NoRoute)
+    assert cli._lan_ip() == "127.0.0.1"
