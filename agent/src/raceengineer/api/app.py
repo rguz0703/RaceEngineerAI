@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from raceengineer.adapters.ac_shared_memory import GameProbe
 from raceengineer.analysis import lap_index
@@ -14,7 +15,9 @@ from raceengineer.analysis.car import CarSummary, summarize_car
 from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
 from raceengineer.analysis.diagnosis import diagnose, lap_data
 from raceengineer.analysis.laps import best_clean_lap
+from raceengineer.analysis.overview import overview
 from raceengineer.api.schemas import (
+    BestLapOut,
     CarOut,
     ChannelsOut,
     ComparisonOut,
@@ -22,10 +25,13 @@ from raceengineer.api.schemas import (
     LapOut,
     LapRef,
     NoteOut,
+    OverviewOut,
+    ProgressOut,
     RecordingOut,
     SegmentOut,
     SessionLapsOut,
     SessionOut,
+    TotalsOut,
     TyreOut,
 )
 from raceengineer.capture.service import RecordingService, RecordingState, RecordingStatus
@@ -119,18 +125,33 @@ def create_app(
 
     @app.get("/api/sessions")
     def list_sessions() -> list[SessionOut]:
+        return [_session_out(r, laps) for r, laps in reversed(all_sessions())]
+
+    def all_sessions() -> list[tuple[SessionRecord, list[Lap]]]:
         if not db_path.exists():
             return []
         with SqliteSessionRepository(db_path) as repository:
-            records = repository.list_sessions()
-        return [_session_out(r) for r in reversed(records)]
+            return [
+                (r, lap_index.session_laps(repository, r.id)) for r in repository.list_sessions()
+            ]
+
+    @app.get("/api/overview")
+    def home() -> OverviewOut:
+        sessions = all_sessions()
+        summary = overview(sessions)
+        return OverviewOut(
+            totals=TotalsOut.model_validate(summary.totals, from_attributes=True),
+            best_laps=[_validated(BestLapOut, b) for b in summary.best_laps],
+            progress=[_validated(ProgressOut, p) for p in summary.progress],
+            recent=[_session_out(r, laps) for r, laps in reversed(sessions[-5:])],
+        )
 
     @app.get("/api/sessions/{session_id}/laps")
     def session_laps(session_id: int) -> SessionLapsOut:
         session = load(session_id)
         best = best_clean_lap(session.laps)
         return SessionLapsOut(
-            session=_session_out(session.record),
+            session=_session_out(session.record, session.laps),
             laps=[_lap_out(lap) for lap in session.laps],
             best_clean_lap=best.number if best else None,
         )
@@ -201,6 +222,11 @@ def create_app(
     return app
 
 
+def _validated[M: BaseModel](model: type[M], value: object) -> M:
+    """Build an API model from a dataclass (nested dataclasses included)."""
+    return model.model_validate(value, from_attributes=True)
+
+
 def _finished_lap(session: _Session, number: int) -> Lap:
     lap = next((lap for lap in session.laps if lap.number == number), None)
     if lap is None or lap.time_ms is None:
@@ -211,8 +237,9 @@ def _finished_lap(session: _Session, number: int) -> Lap:
     return lap
 
 
-def _session_out(record: SessionRecord) -> SessionOut:
+def _session_out(record: SessionRecord, laps: list[Lap]) -> SessionOut:
     info = record.info
+    best = best_clean_lap(laps)
     return SessionOut(
         id=record.id,
         sim=info.sim,
@@ -223,6 +250,8 @@ def _session_out(record: SessionRecord) -> SessionOut:
         started_at=record.started_at,
         ended_at=record.ended_at,
         sample_count=record.sample_count,
+        lap_count=sum(lap.time_ms is not None for lap in laps),
+        best_lap_ms=best.time_ms if best else None,
     )
 
 

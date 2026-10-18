@@ -1,30 +1,36 @@
+import { useEffect, useRef, useState } from "react";
+import { Nav } from "./components/Nav";
+import { useRoute } from "./route";
+import { useRecording } from "./useRecording";
 import { CompareView } from "./views/CompareView";
+import { HomeView } from "./views/HomeView";
+import { PickView } from "./views/PickView";
 import { SessionsView } from "./views/SessionsView";
 import { SessionView } from "./views/SessionView";
-import { href, useRoute } from "./route";
-import { useRecording } from "./useRecording";
 
 export function App() {
   const route = useRoute();
   const control = useRecording();
-  const recording = control.recording;
-  const live = recording && (recording.state === "recording" || recording.state === "stopping");
+
+  // Lists refresh whenever a recording finishes.
+  const [version, setVersion] = useState(0);
+  const lastSession = control.recording?.last_session_id ?? null;
+  const seen = useRef(lastSession);
+  useEffect(() => {
+    if (lastSession !== seen.current) {
+      seen.current = lastSession;
+      setVersion((v) => v + 1);
+    }
+  }, [lastSession]);
+
   return (
     <>
-      <header className="topbar">
-        <a className="brand" href={href({ page: "sessions" })}>
-          <span className="brand-mark" aria-hidden="true" />
-          RaceEngineerAI
-        </a>
-        {live && (
-          <a className="rec-pill" href={href({ page: "sessions" })}>
-            <span className="dot rec" aria-hidden="true" /> Grabando · vuelta {recording.lap}
-          </a>
-        )}
-      </header>
+      <Nav route={route} recording={control.recording} />
       <main className="page">
-        {route.page === "sessions" && <SessionsView control={control} />}
+        {route.page === "home" && <HomeView control={control} version={version} />}
+        {route.page === "sessions" && <SessionsView version={version} />}
         {route.page === "session" && <SessionView id={route.id} />}
+        {route.page === "pick" && <PickView />}
         {route.page === "compare" && <CompareView key={JSON.stringify(route)} {...route} />}
       </main>
     </>
