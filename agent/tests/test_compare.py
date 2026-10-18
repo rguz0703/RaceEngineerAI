@@ -109,3 +109,13 @@ def test_laps_without_common_stretch() -> None:
     late = replace(lap, start=late_start, complete=False)
     with pytest.raises(ValueError, match="en común"):
         compare_laps(lap_trace(samples, early, TRACK_M), lap_trace(samples, late, TRACK_M))
+
+
+def test_positions_follow_the_track() -> None:
+    samples, laps = _fake_laps()
+    comparison = compare_laps(
+        lap_trace(samples, laps[1], TRACK_M), lap_trace(samples, laps[0], TRACK_M), step_m=50
+    )
+    radius = TRACK_M / (2 * 3.141592653589793)
+    for x, z in zip(comparison.reference.pos_x, comparison.reference.pos_z, strict=True):
+        assert (x * x + z * z) ** 0.5 == pytest.approx(radius, rel=0.02)

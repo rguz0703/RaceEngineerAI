@@ -47,6 +47,9 @@ class LapRef(BaseModel):
 
 
 class SegmentOut(BaseModel):
+    start_index: int
+    end_index: int
+    """Grid indexes covered by the segment (inclusive), to color the track map."""
     start_m: float
     end_m: float
     delta_s: float
@@ -65,4 +68,7 @@ class ComparisonOut(BaseModel):
     delta_s: list[float]
     target_channels: ChannelsOut
     reference_channels: ChannelsOut
+    track_x: list[float]
+    track_z: list[float]
+    """The reference lap's path on the distance grid, to draw the track map."""
     segments: list[SegmentOut]

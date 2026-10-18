@@ -42,6 +42,8 @@ export interface LapRef {
 }
 
 export interface Segment {
+  start_index: number;
+  end_index: number;
   start_m: number;
   end_m: number;
   delta_s: number;
@@ -59,6 +61,8 @@ export interface Comparison {
   delta_s: number[];
   target_channels: Channels;
   reference_channels: Channels;
+  track_x: number[];
+  track_z: number[];
   segments: Segment[];
 }
 
