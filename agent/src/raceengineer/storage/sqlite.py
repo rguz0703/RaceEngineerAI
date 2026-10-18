@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -128,10 +128,25 @@ class SqliteSessionRepository:
             raise RuntimeError(
                 f"Database schema v{version} is newer than this app supports (v{SCHEMA_VERSION})"
             )
-        if version < SCHEMA_VERSION:
-            with self._conn:
-                self._conn.executescript(_SCHEMA)
-                self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        # Each step runs in its own transaction, so a crash never leaves a half-upgraded file.
+        if version == 0:
+            self._conn.executescript(
+                f"BEGIN; {_SCHEMA} PRAGMA user_version = {SCHEMA_VERSION}; COMMIT;"
+            )
+            return
+        for target in range(version + 1, SCHEMA_VERSION + 1):
+            self._conn.executescript(
+                f"BEGIN; {_MIGRATIONS[target - 2]} PRAGMA user_version = {target}; COMMIT;"
+            )
+
+
+# Each entry upgrades the schema from version N - 1 to N (index 0 = to version 2).
+_MIGRATIONS = [
+    """
+    ALTER TABLE samples ADD COLUMN last_lap_ms REAL NOT NULL DEFAULT 0;
+    ALTER TABLE samples ADD COLUMN tyres_out REAL NOT NULL DEFAULT 0;
+    """,
+]
 
 
 def _sample_from_row(row: tuple[float, ...]) -> TelemetrySample:
@@ -152,4 +167,6 @@ def _sample_from_row(row: tuple[float, ...]) -> TelemetrySample:
         pos_y=values["pos_y"],
         pos_z=values["pos_z"],
         in_pit=bool(values["in_pit"]),
+        last_lap_ms=int(values["last_lap_ms"]),
+        tyres_out=int(values["tyres_out"]),
     )

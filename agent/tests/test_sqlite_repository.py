@@ -72,3 +72,40 @@ def test_refuses_database_from_newer_version(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="newer"):
         SqliteSessionRepository(db)
+
+
+_V1_SCHEMA = """
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, sim TEXT NOT NULL, track TEXT NOT NULL,
+    track_config TEXT NOT NULL, car TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT
+);
+CREATE TABLE samples (
+    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    seq INTEGER NOT NULL,
+    t REAL NOT NULL, lap_number REAL NOT NULL, lap_time_ms REAL NOT NULL,
+    normalized_position REAL NOT NULL, speed_kmh REAL NOT NULL, throttle REAL NOT NULL,
+    brake REAL NOT NULL, clutch REAL NOT NULL, steering REAL NOT NULL, gear REAL NOT NULL,
+    rpm REAL NOT NULL, pos_x REAL NOT NULL, pos_y REAL NOT NULL, pos_z REAL NOT NULL,
+    in_pit REAL NOT NULL,
+    PRIMARY KEY (session_id, seq)
+) WITHOUT ROWID;
+INSERT INTO sessions VALUES (1, 'ac', 'monza', '', 'car', '2026-10-17T12:00:00+00:00', NULL);
+INSERT INTO samples VALUES (1, 0, 0.5, 1, 1234, 0.1, 200, 1, 0, 0, 0, 5, 7000, 1, 2, 3, 0);
+PRAGMA user_version = 1;
+"""
+
+
+def test_upgrades_version_1_database(tmp_path: Path) -> None:
+    db = tmp_path / "v1.sqlite"
+    conn = sqlite3.connect(db)
+    conn.executescript(_V1_SCHEMA)
+    conn.close()
+
+    with SqliteSessionRepository(db) as repo:
+        [sample] = repo.load_samples(1)
+
+    assert (sample.lap_time_ms, sample.speed_kmh) == (1234, 200.0)
+    assert (sample.last_lap_ms, sample.tyres_out) == (0, 0)
+    conn = sqlite3.connect(db)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    conn.close()

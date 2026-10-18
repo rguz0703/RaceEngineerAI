@@ -277,7 +277,17 @@ def to_sample(physics: SPageFilePhysics, graphics: SPageFileGraphic, t: float) -
         pos_y=graphics.carCoordinates[1],
         pos_z=graphics.carCoordinates[2],
         in_pit=bool(graphics.isInPit or graphics.isInPitLane),
+        last_lap_ms=_lap_ms(graphics.iLastTime),
+        tyres_out=physics.numberOfTyresOut,
     )
+
+
+_MAX_LAP_MS = 60 * 60 * 1000
+
+
+def _lap_ms(value: int) -> int:
+    """AC fills 'no lap yet' with placeholders; keep only plausible lap times."""
+    return value if 0 < value < _MAX_LAP_MS else 0
 
 
 def _clamp(value: float, low: float, high: float) -> float:

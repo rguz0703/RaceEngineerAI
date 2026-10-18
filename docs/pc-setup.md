@@ -131,9 +131,10 @@ PowerShell con Alt+Tab sin problemas.
    uv run raceengineer laps N
    ```
 
-   (cambia `N` por el número de la sesión). Cada vuelta completa debería quedar a
-   menos de unas centésimas del tiempo del juego. La primera vuelta (salida de
-   boxes) y la última (cortada con Ctrl+C) normalmente están incompletas.
+   (cambia `N` por el número de la sesión). Los tiempos son los oficiales del
+   juego. La columna "Tipo" dice si es vuelta de salida o entrada a boxes,
+   lanzada (completa) o sin terminar (cortada con Ctrl+C), y "Fuera de pista"
+   marca si en algún momento sacaste más de dos llantas.
 
 ### Si algo falla
 
