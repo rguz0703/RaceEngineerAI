@@ -73,6 +73,8 @@ class SessionInfo:
     track: str
     car: str
     track_config: str = ""
+    track_length_m: float = 0.0
+    """Length of the racing line; 0 if the source does not know it."""
 
 
 @dataclass(frozen=True, slots=True)

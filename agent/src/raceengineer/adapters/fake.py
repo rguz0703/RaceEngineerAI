@@ -58,7 +58,12 @@ class FakeSource:
         self._seed = seed
 
     def session_info(self) -> SessionInfo:
-        return SessionInfo(sim="fake", track="synthetic_oval", car="fake_gt3")
+        return SessionInfo(
+            sim="fake",
+            track="synthetic_oval",
+            car="fake_gt3",
+            track_length_m=self._track_length_m,
+        )
 
     def samples(self) -> Iterator[TelemetrySample]:
         rng = random.Random(self._seed)

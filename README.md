@@ -3,7 +3,7 @@
 Ingeniero de carrera para sim racing: captura telemetría del simulador, analiza
 tus vueltas y te dice dónde y cómo mejorar, en vivo o después de la sesión.
 
-> Estado: **Fase 3** (separación de vueltas). La captura de Assetto Corsa por
+> Estado: **Fase 4** (comparación de vueltas). La captura de Assetto Corsa por
 > memoria compartida está verificada con el juego (AC 1.16.4). Ver
 > [docs/architecture.md](docs/architecture.md) y la guía de la PC en
 > [docs/pc-setup.md](docs/pc-setup.md).
@@ -27,6 +27,8 @@ uv run raceengineer --version
 uv run raceengineer record --laps 3   # graba una sesión sintética (sin simulador)
 uv run raceengineer sessions          # lista las sesiones guardadas en data/sessions.sqlite
 uv run raceengineer laps 1            # vueltas de la sesión 1: tiempo, tipo, fuera de pista
+uv run raceengineer compare 1 3       # vuelta 3 contra tu mejor vuelta limpia, tramo a tramo
+uv run raceengineer compare 1 3 --ref 2 --csv data/cmp.csv   # contra la vuelta 2, y a CSV
 ```
 
 Con Assetto Corsa en pista (solo en Windows, ver [docs/pc-setup.md](docs/pc-setup.md)):

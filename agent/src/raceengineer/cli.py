@@ -4,6 +4,7 @@ import argparse
 import signal
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from threading import Event
@@ -18,9 +19,10 @@ from raceengineer.adapters.ac_shared_memory import (
     SharedMemoryReader,
 )
 from raceengineer.adapters.fake import FakeSource
+from raceengineer.analysis.compare import compare_laps, lap_trace, summarize, write_csv
 from raceengineer.analysis.laps import segment_laps
 from raceengineer.capture.recorder import Recorder
-from raceengineer.domain.models import Lap
+from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
 from raceengineer.domain.ports import TelemetrySource
 from raceengineer.storage.sqlite import SqliteSessionRepository
 
@@ -63,6 +65,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     laps.add_argument("session_id", type=int)
 
+    compare = commands.add_parser(
+        "compare", help="comparar una vuelta con otra (por defecto, tu mejor vuelta limpia)"
+    )
+    compare.add_argument("session_id", type=int)
+    compare.add_argument("lap", type=int, help="vuelta a analizar")
+    compare.add_argument("--ref", type=int, help="vuelta de referencia")
+    compare.add_argument(
+        "--ref-session", type=int, help="sesión de la referencia (por defecto, la misma)"
+    )
+    compare.add_argument("--csv", type=Path, help="exportar la comparación metro a metro")
+
     dump = commands.add_parser(
         "dump-raw", help="guardar los bytes crudos de la memoria compartida de Assetto Corsa"
     )
@@ -87,6 +100,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _sessions(args.db)
         if args.command == "laps":
             return _laps(args.db, args.session_id)
+        if args.command == "compare":
+            return _compare(args)
         if args.command == "dump-raw":
             return _dump_raw(args)
     except ACNotRunningError as exc:
@@ -175,6 +190,113 @@ def _laps(db: Path, session_id: int) -> int:
     if any(not lap.official and lap.time_ms is not None for lap in laps):
         print("≈ tiempo estimado (sesión grabada antes de guardar el tiempo oficial del juego)")
     return 0
+
+
+def _compare(args: argparse.Namespace) -> int:
+    if not args.db.exists():
+        print(f"No hay sesiones todavía ({args.db} no existe).")
+        return 1
+    ref_session = args.ref_session if args.ref_session is not None else args.session_id
+    with SqliteSessionRepository(args.db) as repository:
+        target = _load_session(repository, args.session_id)
+        reference = (
+            target if ref_session == args.session_id else _load_session(repository, ref_session)
+        )
+    if target is None or reference is None:
+        print(f"No existe la sesión {args.session_id if target is None else ref_session}.")
+        return 1
+
+    target_lap = _find_lap(target.laps, args.lap)
+    if target_lap is None or target_lap.time_ms is None:
+        print(f"La vuelta {args.lap} no existe o no está terminada en la sesión {args.session_id}.")
+        return 1
+    if args.ref is not None:
+        ref_lap = _find_lap(reference.laps, args.ref)
+    else:
+        exclude = target_lap if reference is target else None
+        ref_lap = _best_clean_lap(reference.laps, exclude)
+    if ref_lap is None or ref_lap.time_ms is None:
+        print("No hay vuelta de referencia terminada. Indica una con --ref.")
+        return 1
+
+    length = target.info.track_length_m
+    comparison = compare_laps(
+        lap_trace(target.samples, target_lap, length),
+        lap_trace(reference.samples, ref_lap, reference.info.track_length_m),
+    )
+    total = comparison.delta_s[-1]
+    print(
+        f"Vuelta {target_lap.number} ({_lap_time(target_lap)}) contra vuelta {ref_lap.number} "
+        f"({_lap_time(ref_lap)}"
+        + (f", sesión {ref_session}" if ref_session != args.session_id else "")
+        + f") en {target.info.track}"
+    )
+    verdict = "más lenta" if total > 0 else "más rápida"
+    print(f"Diferencia: {total:+.3f} s ({verdict})")
+    if not (target_lap.complete and ref_lap.complete):
+        print(
+            f"Ojo: una de las vueltas no se grabó desde la meta (p. ej. salida de boxes). "
+            f"Solo se compara de {comparison.distance_m[0]:.0f} a "
+            f"{comparison.distance_m[-1]:.0f} m, así que la diferencia no es la del cronómetro."
+        )
+    print()
+    segments = summarize(comparison)
+    rows = [
+        (
+            f"{seg.start_m:.0f}-{seg.end_m:.0f} m",
+            f"{seg.delta_s:+.3f} s",
+            f"{seg.target_min_speed_kmh:.0f} / {seg.reference_min_speed_kmh:.0f}",
+            f"{seg.target_avg_speed_kmh:.0f} / {seg.reference_avg_speed_kmh:.0f}",
+        )
+        for seg in segments
+    ]
+    _print_table(("Tramo", "Delta", "Vel. mín (km/h)", "Vel. media"), rows)
+    print("(delta +: pierdes tiempo; velocidades: esta vuelta / referencia)")
+    losses = sorted((s for s in segments if s.delta_s > 0), key=lambda s: -s.delta_s)[:3]
+    if losses:
+        print()
+        print("Dónde pierdes más tiempo:")
+        for i, seg in enumerate(losses, start=1):
+            print(
+                f"{i}. {seg.start_m:.0f}-{seg.end_m:.0f} m: {seg.delta_s:+.3f} s "
+                f"(vel. mínima {seg.target_min_speed_kmh:.0f} vs "
+                f"{seg.reference_min_speed_kmh:.0f} km/h)"
+            )
+    if args.csv is not None:
+        write_csv(comparison, args.csv)
+        print(f"\nComparación metro a metro guardada en {args.csv}")
+    return 0
+
+
+@dataclass(frozen=True, slots=True)
+class _LoadedSession:
+    info: SessionInfo
+    samples: list[TelemetrySample]
+    laps: list[Lap]
+
+
+def _load_session(repository: SqliteSessionRepository, session_id: int) -> _LoadedSession | None:
+    record = repository.get_session(session_id)
+    if record is None:
+        return None
+    samples = repository.load_samples(session_id)
+    return _LoadedSession(info=record.info, samples=samples, laps=segment_laps(samples))
+
+
+def _find_lap(laps: Sequence[Lap], number: int) -> Lap | None:
+    return next((lap for lap in laps if lap.number == number), None)
+
+
+def _best_clean_lap(laps: Sequence[Lap], exclude: Lap | None) -> Lap | None:
+    candidates = [
+        lap
+        for lap in laps
+        if lap.time_ms is not None
+        and lap.complete
+        and not (lap.off_track or lap.out_lap or lap.in_lap)
+        and lap != exclude
+    ]
+    return min(candidates, key=lambda lap: lap.time_ms or 0, default=None)
 
 
 def _lap_time(lap: Lap) -> str:

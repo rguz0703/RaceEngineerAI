@@ -6,7 +6,7 @@ import pytest
 
 from raceengineer.adapters.fake import FakeSource
 from raceengineer.domain.models import SessionInfo
-from raceengineer.storage.sqlite import SqliteSessionRepository
+from raceengineer.storage.sqlite import SCHEMA_VERSION, SqliteSessionRepository
 
 INFO = SessionInfo(sim="ac", track="monza", car="bmw_m3_e30", track_config="")
 START = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
@@ -103,9 +103,13 @@ def test_upgrades_version_1_database(tmp_path: Path) -> None:
 
     with SqliteSessionRepository(db) as repo:
         [sample] = repo.load_samples(1)
+        record = repo.get_session(1)
+        assert repo.get_session(2) is None
 
     assert (sample.lap_time_ms, sample.speed_kmh) == (1234, 200.0)
     assert (sample.last_lap_ms, sample.tyres_out) == (0, 0)
     conn = sqlite3.connect(db)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert record is not None
+    assert record.info.track_length_m == 0.0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     conn.close()

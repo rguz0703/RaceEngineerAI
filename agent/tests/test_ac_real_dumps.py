@@ -6,6 +6,7 @@ import pytest
 
 from raceengineer.adapters.ac_raw_dump import RawDumpReader
 from raceengineer.adapters.ac_shared_memory import ACSharedMemorySource
+from raceengineer.analysis.compare import compare_laps, lap_trace, summarize
 from raceengineer.analysis.laps import segment_laps
 
 FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*.acraw.gz"))
@@ -116,3 +117,27 @@ def test_f3_dump_laps_match_the_game() -> None:
     # Pedals while parked: AC reports clutch 1.0 released, so ours reads 1.0 pressed.
     assert max(s.brake for s in samples) == 1.0
     assert max(s.clutch for s in samples) == 1.0
+
+
+@pytest.mark.skipif(not F3_LAPS.exists(), reason="falta el volcado de vueltas")
+def test_f3_dump_lap_comparison() -> None:
+    reader = RawDumpReader(F3_LAPS)
+    try:
+        source = ACSharedMemorySource(reader, clock=reader.clock, sleep=lambda _: None)
+        info = source.session_info()
+        samples = list(source.samples())
+    finally:
+        reader.close()
+    laps = segment_laps(samples)
+
+    comparison = compare_laps(
+        lap_trace(samples, laps[2], info.track_length_m),
+        lap_trace(samples, laps[1], info.track_length_m),
+    )
+
+    assert info.track_length_m == pytest.approx(5758.7, abs=0.1)
+    assert comparison.delta_s[-1] == pytest.approx((117_793 - 132_748) / 1000)
+    # Lap 3 cut the first chicane and ended through the pit lane.
+    segments = summarize(comparison)
+    assert segments[1].delta_s < -3
+    assert segments[-1].delta_s > 0
