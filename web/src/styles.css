@@ -315,7 +315,6 @@ tr.best td {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 24px;
 }
 
 .chart {
@@ -359,4 +358,185 @@ tr.best td {
   .table-wrap td {
     padding: 8px;
   }
+}
+
+.analysis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 20px;
+}
+
+.tramos .track-map {
+  margin-bottom: 10px;
+}
+
+/* Wide screens: map and segments stay in view next to the charts. */
+@media (min-width: 1000px) {
+  .page {
+    max-width: 1400px;
+  }
+  .analysis {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .tramos {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 56px;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+  }
+  .charts {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .tramos .track-map svg {
+    max-height: 42vh;
+  }
+}
+
+.track-map {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.track-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(460px, 70vh);
+}
+
+.track-outline {
+  fill: none;
+  stroke: var(--grid);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.track-seg {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: pointer;
+}
+
+.track-seg.gain {
+  stroke: var(--gain);
+}
+
+.track-seg.lose {
+  stroke: var(--lose);
+}
+
+.track-seg.even {
+  stroke: var(--muted);
+}
+
+.track-finish {
+  stroke: var(--text);
+}
+
+.track-label {
+  cursor: pointer;
+}
+
+.track-label circle {
+  fill: var(--surface);
+  stroke: var(--border);
+}
+
+.track-label.selected circle {
+  stroke: var(--text);
+}
+
+.track-label text {
+  fill: var(--text);
+  text-anchor: middle;
+  font-weight: 700;
+}
+
+.track-dot {
+  fill: var(--series-target);
+  stroke: var(--surface);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+.map-legend {
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 6px 4px 0;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin: 0 3px 0 8px;
+  vertical-align: -1px;
+}
+
+.swatch:first-child {
+  margin-left: 0;
+}
+
+.swatch.gain,
+.seg-dot.gain {
+  background: var(--gain);
+}
+
+.swatch.lose,
+.seg-dot.lose {
+  background: var(--lose);
+}
+
+.swatch.even,
+.seg-dot.even {
+  background: var(--muted);
+}
+
+.seg-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+tr.clickable {
+  cursor: pointer;
+}
+
+tr.selected td {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+button.link {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 6px;
+  cursor: pointer;
+  vertical-align: 2px;
 }

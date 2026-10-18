@@ -26,6 +26,9 @@ class LapTrace:
     throttle: list[float]
     brake: list[float]
     gear: list[int]
+    pos_x: list[float]
+    pos_z: list[float]
+    """Horizontal world position (the game's Y axis is height)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +38,8 @@ class Channels:
     throttle: list[float]
     brake: list[float]
     gear: list[int]
+    pos_x: list[float]
+    pos_z: list[float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +55,8 @@ class LapComparison:
 
 @dataclass(frozen=True, slots=True)
 class SegmentSummary:
+    start_index: int
+    end_index: int
     start_m: float
     end_m: float
     delta_s: float
@@ -85,6 +92,8 @@ def lap_trace(
         throttle=[s.throttle for s in lap_samples],
         brake=[s.brake for s in lap_samples],
         gear=[s.gear for s in lap_samples],
+        pos_x=[s.pos_x for s in lap_samples],
+        pos_z=[s.pos_z for s in lap_samples],
     )
     # Pin the ends to the line so totals match the official lap time exactly.
     if lap.complete and distance[0] > 0:
@@ -137,6 +146,8 @@ def summarize(comparison: LapComparison, segments: int = 10) -> list[SegmentSumm
         reference_speed = comparison.reference.speed_kmh[window]
         summaries.append(
             SegmentSummary(
+                start_index=first,
+                end_index=last,
                 start_m=d[first],
                 end_m=d[last],
                 delta_s=comparison.delta_s[last] - comparison.delta_s[first],
@@ -223,10 +234,12 @@ def _insert(
     trace.throttle.insert(index, like.throttle)
     trace.brake.insert(index, like.brake)
     trace.gear.insert(index, like.gear)
+    trace.pos_x.insert(index, like.pos_x)
+    trace.pos_z.insert(index, like.pos_z)
 
 
 def _resample(trace: LapTrace, grid: list[float]) -> Channels:
-    times, speeds, throttles, brakes, gears = [], [], [], [], []
+    times, speeds, throttles, brakes, gears, xs, zs = [], [], [], [], [], [], []
     d = trace.distance_m
     for x in grid:
         hi = min(len(d) - 1, max(1, bisect_right(d, x)))
@@ -239,7 +252,17 @@ def _resample(trace: LapTrace, grid: list[float]) -> Channels:
         throttles.append(_lerp(trace.throttle, lo, hi, f))
         brakes.append(_lerp(trace.brake, lo, hi, f))
         gears.append(trace.gear[lo] if f < 1.0 else trace.gear[hi])
-    return Channels(time_s=times, speed_kmh=speeds, throttle=throttles, brake=brakes, gear=gears)
+        xs.append(_lerp(trace.pos_x, lo, hi, f))
+        zs.append(_lerp(trace.pos_z, lo, hi, f))
+    return Channels(
+        time_s=times,
+        speed_kmh=speeds,
+        throttle=throttles,
+        brake=brakes,
+        gear=gears,
+        pos_x=xs,
+        pos_z=zs,
+    )
 
 
 def _lerp(values: list[float], lo: int, hi: int, f: float) -> float:

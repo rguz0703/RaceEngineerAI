@@ -60,6 +60,12 @@ def test_compare_defaults_to_best_clean_lap(db: Path) -> None:
         (body["target"]["time_ms"] - body["reference"]["time_ms"]) / 1000, abs=1e-6
     )
     assert len(body["segments"]) == 10
+    # The track map: the reference lap's path on the same grid, split by segment.
+    assert len(body["track_x"]) == len(body["track_z"]) == n
+    assert body["segments"][0]["start_index"] == 0
+    assert body["segments"][-1]["end_index"] == n - 1
+    for prev, cur in zip(body["segments"], body["segments"][1:], strict=False):
+        assert cur["start_index"] == prev["end_index"]
 
 
 def test_compare_across_sessions(db: Path) -> None:

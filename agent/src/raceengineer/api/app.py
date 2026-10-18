@@ -102,6 +102,8 @@ def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
             delta_s=comparison.delta_s,
             target_channels=_channels_out(comparison.target),
             reference_channels=_channels_out(comparison.reference),
+            track_x=[round(v, 1) for v in comparison.reference.pos_x],
+            track_z=[round(v, 1) for v in comparison.reference.pos_z],
             segments=[
                 SegmentOut.model_validate(s, from_attributes=True) for s in summarize(comparison)
             ],

@@ -19,11 +19,19 @@ interface Props {
   zeroLine?: boolean;
   format?: (value: number) => string;
   syncKey: string;
+  /** Called with the grid index under the cursor, or null when it leaves. */
+  onCursor?: (index: number | null) => void;
+  /** Zoom to this distance range; null shows the whole lap. */
+  xRange?: [number, number] | null;
 }
 
 /** A distance-based line chart; charts with the same syncKey share the cursor. */
-export function Chart({ title, x, series, height = 180, yRange, zeroLine, format, syncKey }: Props) {
+export function Chart({ title, x, series, height = 180, yRange, zeroLine, format, syncKey, onCursor, xRange }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<uPlot | null>(null);
+  // Kept in a ref so a new callback does not rebuild the chart.
+  const cursorCallback = useRef(onCursor);
+  cursorCallback.current = onCursor;
 
   useEffect(() => {
     const el = host.current;
@@ -64,7 +72,9 @@ export function Chart({ title, x, series, height = 180, yRange, zeroLine, format
           value: (_u: uPlot, v: number | null) => (v == null ? "—" : fmt(v)),
         })),
       ],
-      hooks: zeroLine
+      hooks: {
+        setCursor: [(u: uPlot) => cursorCallback.current?.(u.cursor.idx ?? null)],
+        ...(zeroLine
         ? {
             drawClear: [
               (u: uPlot) => {
@@ -81,16 +91,26 @@ export function Chart({ title, x, series, height = 180, yRange, zeroLine, format
               },
             ],
           }
-        : {},
+        : {}),
+      },
     };
     const plot = new uPlot(options, [x, ...series.map((s) => s.values)], el);
+    plotRef.current = plot;
     const resize = new ResizeObserver(() => plot.setSize({ width: el.clientWidth, height }));
     resize.observe(el);
     return () => {
       resize.disconnect();
       plot.destroy();
+      plotRef.current = null;
     };
   }, [x, series, height, yRange, zeroLine, format, syncKey]);
+
+  useEffect(() => {
+    const plot = plotRef.current;
+    if (!plot || x.length === 0) return;
+    const [min, max] = xRange ?? [x[0], x[x.length - 1]];
+    plot.setScale("x", { min, max });
+  }, [xRange, x]);
 
   return (
     <figure className="chart">
