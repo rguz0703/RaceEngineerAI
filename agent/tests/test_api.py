@@ -30,6 +30,8 @@ def _client(db: Path, static_dir: Path | None = None) -> TestClient:
 def test_sessions_newest_first(db: Path) -> None:
     sessions = _client(db).get("/api/sessions").json()
     assert [s["id"] for s in sessions] == [2, 1]
+    assert sessions[0]["lap_count"] == 2
+    assert sessions[0]["best_lap_ms"] > 0
     assert sessions[0]["track"] == "synthetic_oval"
     assert sessions[0]["track_length_m"] == 2000.0
     assert sessions[0]["sample_count"] > 0
@@ -131,3 +133,17 @@ def test_serves_dashboard_when_built(db: Path, tmp_path: Path) -> None:
 def test_session_record_times_are_iso(db: Path) -> None:
     started = _client(db).get("/api/sessions").json()[0]["started_at"]
     assert datetime.fromisoformat(started) == datetime(2026, 10, 17, tzinfo=UTC)
+
+
+def test_overview(db: Path) -> None:
+    body = _client(db).get("/api/overview").json()
+    assert body["totals"] == {"sessions": 2, "laps": 4, "distance_km": 8.0}
+    [best] = body["best_laps"]
+    assert best["track"] == "synthetic_oval"
+    assert len(body["progress"][0]["points"]) == 2
+    assert [s["id"] for s in body["recent"]] == [2, 1]
+
+
+def test_overview_without_database(tmp_path: Path) -> None:
+    body = _client(tmp_path / "none.sqlite").get("/api/overview").json()
+    assert body["totals"]["sessions"] == 0

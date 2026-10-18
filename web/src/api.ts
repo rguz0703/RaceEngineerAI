@@ -10,6 +10,8 @@ export interface Session {
   started_at: string;
   ended_at: string | null;
   sample_count: number;
+  lap_count: number;
+  best_lap_ms: number | null;
 }
 
 export interface Lap {
@@ -95,6 +97,32 @@ export interface Comparison {
   notes: Note[];
 }
 
+export interface BestLap {
+  sim: string;
+  track: string;
+  track_config: string;
+  car: string;
+  time_ms: number;
+  session_id: number;
+  lap: number;
+  driven_at: string;
+}
+
+export interface Progress {
+  sim: string;
+  track: string;
+  track_config: string;
+  car: string;
+  points: { session_id: number; driven_at: string; best_ms: number }[];
+}
+
+export interface Overview {
+  totals: { sessions: number; laps: number; distance_km: number };
+  best_laps: BestLap[];
+  progress: Progress[];
+  recent: Session[];
+}
+
 export interface Game {
   state: "unavailable" | "closed" | "off" | "live" | "pause" | "replay" | string;
   track: string;
@@ -135,6 +163,7 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  overview: () => get<Overview>("/api/overview"),
   recording: () => get<Recording>("/api/recording"),
   startRecording: () => get<Recording>("/api/recording/start", { method: "POST" }),
   stopRecording: () => get<Recording>("/api/recording/stop", { method: "POST" }),

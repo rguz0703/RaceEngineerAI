@@ -15,6 +15,10 @@ class SessionOut(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     sample_count: int
+    lap_count: int
+    """Finished laps."""
+    best_lap_ms: int | None
+    """Best clean lap (complete, on track, no pits)."""
 
 
 class LapOut(BaseModel):
@@ -128,3 +132,41 @@ class RecordingOut(BaseModel):
     message: str
     last_session_id: int | None
     game: GameOut
+
+
+class BestLapOut(BaseModel):
+    sim: str
+    track: str
+    track_config: str
+    car: str
+    time_ms: int
+    session_id: int
+    lap: int
+    driven_at: datetime
+
+
+class ProgressPointOut(BaseModel):
+    session_id: int
+    driven_at: datetime
+    best_ms: int
+
+
+class ProgressOut(BaseModel):
+    sim: str
+    track: str
+    track_config: str
+    car: str
+    points: list[ProgressPointOut]
+
+
+class TotalsOut(BaseModel):
+    sessions: int
+    laps: int
+    distance_km: float
+
+
+class OverviewOut(BaseModel):
+    totals: TotalsOut
+    best_laps: list[BestLapOut]
+    progress: list[ProgressOut]
+    recent: list[SessionOut]

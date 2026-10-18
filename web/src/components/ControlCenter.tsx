@@ -60,7 +60,7 @@ export function ControlCenter({ recording, error, busy, onStart, onStop }: Props
             <span className="stat-label">Vuelta</span>
             <span className="stat-value">{recording.lap}</span>
           </div>
-          <div className="stat">
+          <div className="stat big">
             <span className="stat-label">Cronómetro</span>
             <span className="stat-value">{lapTime(recording.lap_time_ms)}</span>
           </div>
