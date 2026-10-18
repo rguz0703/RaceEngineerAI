@@ -53,6 +53,32 @@ export interface Segment {
   reference_avg_speed_kmh: number;
 }
 
+export interface Tyre {
+  wheel: "fl" | "fr" | "rl" | "rr";
+  pressure_psi: number;
+  temp_inner_c: number;
+  temp_middle_c: number;
+  temp_outer_c: number;
+}
+
+export interface Car {
+  tyre_compound: string;
+  tyres: Tyre[];
+  brake_bias: number;
+  tc: number;
+  abs: number;
+  engine_brake: number;
+  fuel_start_l: number;
+  fuel_end_l: number;
+}
+
+export interface Note {
+  segment: number | null;
+  topic: string;
+  severity: "warn" | "info";
+  text: string;
+}
+
 export interface Comparison {
   target: LapRef;
   reference: LapRef;
@@ -64,6 +90,9 @@ export interface Comparison {
   track_x: number[];
   track_z: number[];
   segments: Segment[];
+  target_car: Car | null;
+  reference_car: Car | null;
+  notes: Note[];
 }
 
 async function get<T>(path: string): Promise<T> {

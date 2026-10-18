@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     track_config TEXT NOT NULL,
     car          TEXT NOT NULL,
     track_length_m REAL NOT NULL DEFAULT 0,
+    tyre_compound TEXT NOT NULL DEFAULT '',
     started_at   TEXT NOT NULL,
     ended_at     TEXT
 );
@@ -69,14 +70,16 @@ class SqliteSessionRepository:
     def create_session(self, info: SessionInfo, started_at: datetime) -> int:
         with self._conn:
             cursor = self._conn.execute(
-                "INSERT INTO sessions (sim, track, track_config, car, track_length_m, started_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO sessions "
+                "(sim, track, track_config, car, track_length_m, tyre_compound, started_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     info.sim,
                     info.track,
                     info.track_config,
                     info.car,
                     info.track_length_m,
+                    info.tyre_compound,
                     started_at.isoformat(),
                 ),
             )
@@ -107,7 +110,7 @@ class SqliteSessionRepository:
         rows = self._conn.execute(
             "SELECT s.id, s.sim, s.track, s.track_config, s.car, s.started_at, s.ended_at, "
             "s.track_length_m, "
-            "(SELECT COUNT(*) FROM samples WHERE session_id = s.id) "
+            "(SELECT COUNT(*) FROM samples WHERE session_id = s.id), s.tyre_compound "
             "FROM sessions s ORDER BY s.id"
         ).fetchall()
         return [
@@ -119,6 +122,7 @@ class SqliteSessionRepository:
                     track_config=row[3],
                     car=row[4],
                     track_length_m=row[7],
+                    tyre_compound=row[9],
                 ),
                 started_at=datetime.fromisoformat(row[5]),
                 ended_at=datetime.fromisoformat(row[6]) if row[6] else None,
@@ -165,27 +169,25 @@ _MIGRATIONS = [
     ALTER TABLE samples ADD COLUMN tyres_out REAL NOT NULL DEFAULT 0;
     """,
     "ALTER TABLE sessions ADD COLUMN track_length_m REAL NOT NULL DEFAULT 0;",
+    "ALTER TABLE sessions ADD COLUMN tyre_compound TEXT NOT NULL DEFAULT '';\n"
+    + "\n".join(
+        f"ALTER TABLE samples ADD COLUMN {name} REAL NOT NULL DEFAULT 0;"
+        for name in _SAMPLE_COLUMNS[_SAMPLE_COLUMNS.index("tyres_out") + 1 :]
+    ),
 ]
 
 
+_INT_FIELDS = {f.name for f in fields(TelemetrySample) if f.type is int}
+_BOOL_FIELDS = {f.name for f in fields(TelemetrySample) if f.type is bool}
+
+
 def _sample_from_row(row: tuple[float, ...]) -> TelemetrySample:
-    values = dict(zip(_SAMPLE_COLUMNS, row, strict=True))
-    return TelemetrySample(
-        t=values["t"],
-        lap_number=int(values["lap_number"]),
-        lap_time_ms=int(values["lap_time_ms"]),
-        normalized_position=values["normalized_position"],
-        speed_kmh=values["speed_kmh"],
-        throttle=values["throttle"],
-        brake=values["brake"],
-        clutch=values["clutch"],
-        steering=values["steering"],
-        gear=int(values["gear"]),
-        rpm=values["rpm"],
-        pos_x=values["pos_x"],
-        pos_y=values["pos_y"],
-        pos_z=values["pos_z"],
-        in_pit=bool(values["in_pit"]),
-        last_lap_ms=int(values["last_lap_ms"]),
-        tyres_out=int(values["tyres_out"]),
-    )
+    values: dict[str, float | int | bool] = {}
+    for name, value in zip(_SAMPLE_COLUMNS, row, strict=True):
+        if name in _INT_FIELDS:
+            values[name] = int(value)
+        elif name in _BOOL_FIELDS:
+            values[name] = bool(value)
+        else:
+            values[name] = value
+    return TelemetrySample(**values)  # type: ignore[arg-type]

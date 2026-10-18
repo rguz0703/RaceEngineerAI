@@ -189,3 +189,36 @@ def test_pacer_resyncs_when_behind() -> None:
     pacer.wait()
     pacer.wait()
     assert time.sleeps == pytest.approx([0.01, 0.01])
+
+
+def test_to_sample_reads_car_state_and_slip() -> None:
+    physics = parse_physics(physics_bytes(speedKmh=72.0, brakeBias=0.6, abs=0.2, fuel=40.0))
+    physics.wheelsPressure[0] = 27.5
+    physics.tyreTempI[3] = 91.0
+    physics.wheelAngularSpeed[0] = 0.0  # locked
+    physics.wheelAngularSpeed[1] = 20.0 / 0.3  # rolling: 20 m/s
+    physics.localAngularVel[1] = -0.4
+
+    sample = to_sample(physics, parse_graphics(graphics_bytes()), 0.0, [0.3, 0.3, 0.3, 0.3])
+
+    assert sample.tyre_pressure_fl == pytest.approx(27.5)
+    assert sample.tyre_temp_inner_rr == pytest.approx(91.0)
+    assert sample.slip_ratio_fl == -1.0
+    assert sample.slip_ratio_fr == pytest.approx(0.0, abs=1e-6)
+    assert sample.yaw_rate == pytest.approx(-0.4)
+    assert (sample.brake_bias, sample.abs, sample.fuel) == pytest.approx((0.6, 0.2, 40.0))
+
+
+def test_slip_ratio_is_zero_when_slow_or_without_radius() -> None:
+    physics = parse_physics(physics_bytes(speedKmh=10.0))
+    assert to_sample(physics, parse_graphics(graphics_bytes()), 0.0, [0.3] * 4).slip_ratio_fl == 0
+    fast = parse_physics(physics_bytes(speedKmh=100.0))
+    assert to_sample(fast, parse_graphics(graphics_bytes()), 0.0).slip_ratio_fl == 0
+
+
+def test_session_info_includes_compound_from_graphics() -> None:
+    graphics = SPageFileGraphic(status=2)
+    for i, ch in enumerate("Slick Cup (H)"):
+        graphics.tyreCompound[i] = ord(ch)
+    info = session_info_from_static(parse_static(static_bytes()), graphics)
+    assert info.tyre_compound == "Slick Cup (H)"

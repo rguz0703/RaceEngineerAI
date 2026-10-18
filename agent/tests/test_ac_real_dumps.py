@@ -6,7 +6,9 @@ import pytest
 
 from raceengineer.adapters.ac_raw_dump import RawDumpReader
 from raceengineer.adapters.ac_shared_memory import ACSharedMemorySource
+from raceengineer.analysis.car import summarize_car
 from raceengineer.analysis.compare import compare_laps, lap_trace, summarize
+from raceengineer.analysis.diagnosis import diagnose, lap_data
 from raceengineer.analysis.laps import segment_laps
 
 FIXTURES = sorted((Path(__file__).parent / "fixtures").glob("*.acraw.gz"))
@@ -141,3 +143,37 @@ def test_f3_dump_lap_comparison() -> None:
     segments = summarize(comparison)
     assert segments[1].delta_s < -3
     assert segments[-1].delta_s > 0
+
+
+@pytest.mark.skipif(not F3_LAPS.exists(), reason="falta el volcado de vueltas")
+def test_f3_dump_car_state_and_notes() -> None:
+    reader = RawDumpReader(F3_LAPS)
+    try:
+        source = ACSharedMemorySource(reader, clock=reader.clock, sleep=lambda _: None)
+        info = source.session_info()
+        samples = list(source.samples())
+    finally:
+        reader.close()
+    laps = segment_laps(samples)
+    length = info.track_length_m
+
+    car = summarize_car(samples, laps[1])
+    assert info.tyre_compound == "Slick Cup (H)"
+    assert car is not None
+    assert 20 < car.tyres[0].pressure_psi < 30
+    assert car.brake_bias == pytest.approx(0.62)
+    # Laps 1 and 3 locked the front left under braking (slip ratio near -0.7).
+    assert min(s.slip_ratio_fl for s in samples) < -0.5
+
+    comparison = compare_laps(
+        lap_trace(samples, laps[1], length), lap_trace(samples, laps[2], length)
+    )
+    notes = diagnose(
+        lap_data(samples, laps[1], length),
+        lap_data(samples, laps[2], length),
+        summarize(comparison),
+        car,
+    )
+    # The clean lap lost ~5 s in T2 to a lap that cut the first chicane.
+    t2 = [n.text for n in notes if n.segment == 1]
+    assert any("antes que en la referencia" in t for t in t2)

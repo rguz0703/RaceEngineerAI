@@ -41,6 +41,40 @@ class TelemetrySample:
     tyres_out: int = 0
     """Wheels outside the track limits right now (0 to 4)."""
 
+    # Car state. Wheels are front-left, front-right, rear-left, rear-right.
+    yaw_rate: float = 0.0
+    """Rotation around the vertical axis, rad/s (sign depends on the game)."""
+    tyre_pressure_fl: float = 0.0
+    tyre_pressure_fr: float = 0.0
+    tyre_pressure_rl: float = 0.0
+    tyre_pressure_rr: float = 0.0
+    """Tyre pressures, psi."""
+    tyre_temp_inner_fl: float = 0.0
+    tyre_temp_inner_fr: float = 0.0
+    tyre_temp_inner_rl: float = 0.0
+    tyre_temp_inner_rr: float = 0.0
+    tyre_temp_middle_fl: float = 0.0
+    tyre_temp_middle_fr: float = 0.0
+    tyre_temp_middle_rl: float = 0.0
+    tyre_temp_middle_rr: float = 0.0
+    tyre_temp_outer_fl: float = 0.0
+    tyre_temp_outer_fr: float = 0.0
+    tyre_temp_outer_rl: float = 0.0
+    tyre_temp_outer_rr: float = 0.0
+    """Tyre surface temperatures across the tread, °C."""
+    slip_ratio_fl: float = 0.0
+    slip_ratio_fr: float = 0.0
+    slip_ratio_rl: float = 0.0
+    slip_ratio_rr: float = 0.0
+    """Wheel speed vs car speed: -1 fully locked, 0 rolling, + spinning."""
+    brake_bias: float = 0.0
+    """Share of braking on the front axle, 0 to 1."""
+    tc: float = 0.0
+    abs: float = 0.0
+    engine_brake: int = 0
+    fuel: float = 0.0
+    """Litres."""
+
 
 @dataclass(frozen=True, slots=True)
 class Lap:
@@ -75,6 +109,7 @@ class SessionInfo:
     track_config: str = ""
     track_length_m: float = 0.0
     """Length of the racing line; 0 if the source does not know it."""
+    tyre_compound: str = ""
 
 
 @dataclass(frozen=True, slots=True)
