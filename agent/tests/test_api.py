@@ -66,6 +66,9 @@ def test_compare_defaults_to_best_clean_lap(db: Path) -> None:
     assert body["segments"][-1]["end_index"] == n - 1
     for prev, cur in zip(body["segments"], body["segments"][1:], strict=False):
         assert cur["start_index"] == prev["end_index"]
+    # The synthetic source has no tyre data; notes are still computed.
+    assert body["target_car"] is None and body["reference_car"] is None
+    assert isinstance(body["notes"], list)
 
 
 def test_compare_across_sessions(db: Path) -> None:

@@ -46,6 +46,32 @@ class LapRef(BaseModel):
     time_ms: int | None
 
 
+class TyreOut(BaseModel):
+    wheel: str
+    pressure_psi: float
+    temp_inner_c: float
+    temp_middle_c: float
+    temp_outer_c: float
+
+
+class CarOut(BaseModel):
+    tyre_compound: str
+    tyres: list[TyreOut]
+    brake_bias: float
+    tc: float
+    abs: float
+    engine_brake: int
+    fuel_start_l: float
+    fuel_end_l: float
+
+
+class NoteOut(BaseModel):
+    segment: int | None
+    topic: str
+    severity: str
+    text: str
+
+
 class SegmentOut(BaseModel):
     start_index: int
     end_index: int
@@ -72,3 +98,7 @@ class ComparisonOut(BaseModel):
     track_z: list[float]
     """The reference lap's path on the distance grid, to draw the track map."""
     segments: list[SegmentOut]
+    target_car: CarOut | None
+    reference_car: CarOut | None
+    """None for laps recorded before the car state was stored."""
+    notes: list[NoteOut]

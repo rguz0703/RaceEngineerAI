@@ -163,8 +163,17 @@ La primera vez, Windows pregunta si permites el acceso por el firewall: marca
 **Redes privadas** y acepta. Sin `--lan`, el dashboard solo se ve desde la propia
 PC. Para cerrarlo, pulsa Ctrl+C.
 
-En el dashboard eliges una sesión, ves sus vueltas y pulsas **Comparar** para ver
-las gráficas metro a metro contra tu mejor vuelta limpia.
+En el dashboard eliges una sesión, ves sus vueltas y pulsas **Comparar** para ver:
+
+- el mapa del circuito pintado por tramos;
+- las notas del ingeniero (frenadas, velocidad mínima, aceleración, bloqueos,
+  patinadas, subviraje);
+- las gráficas metro a metro contra tu mejor vuelta limpia;
+- la tarjeta "Coche y neumáticos": presiones, temperaturas de cada llanta,
+  reparto de frenada, TC y ABS.
+
+Las sesiones grabadas antes de esta versión no tienen los datos del coche: graba
+una nueva para verlos.
 
 ### Si algo falla
 

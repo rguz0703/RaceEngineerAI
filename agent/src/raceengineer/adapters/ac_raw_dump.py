@@ -116,6 +116,11 @@ class RawDumpReader:
             return frame
         return self._next_frame()
 
+    def peek(self) -> Snapshot:
+        if self._pending is None:
+            self._pending = self._next_frame()
+        return self._pending
+
     def read_static(self) -> bytes:
         return self._static
 

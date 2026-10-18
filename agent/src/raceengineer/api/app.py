@@ -6,16 +6,21 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from raceengineer.analysis.car import CarSummary, summarize_car
 from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
+from raceengineer.analysis.diagnosis import diagnose, lap_data
 from raceengineer.analysis.laps import best_clean_lap, segment_laps
 from raceengineer.api.schemas import (
+    CarOut,
     ChannelsOut,
     ComparisonOut,
     LapOut,
     LapRef,
+    NoteOut,
     SegmentOut,
     SessionLapsOut,
     SessionOut,
+    TyreOut,
 )
 from raceengineer.domain.models import Lap, SessionRecord, TelemetrySample
 from raceengineer.storage.sqlite import SqliteSessionRepository
@@ -82,14 +87,23 @@ def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
             if best is None:
                 raise HTTPException(404, "No hay vuelta de referencia terminada; elige una")
             reference_lap = best
+        target_trace = lap_trace(target.samples, target_lap, target.record.info.track_length_m)
+        reference_trace = lap_trace(
+            reference.samples, reference_lap, reference.record.info.track_length_m
+        )
         try:
-            comparison = compare_laps(
-                lap_trace(target.samples, target_lap, target.record.info.track_length_m),
-                lap_trace(reference.samples, reference_lap, reference.record.info.track_length_m),
-                step_m=step_m,
-            )
+            comparison = compare_laps(target_trace, reference_trace, step_m=step_m)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
+        segments = summarize(comparison)
+        target_car = summarize_car(target.samples, target_lap)
+        reference_car = summarize_car(reference.samples, reference_lap)
+        notes = diagnose(
+            lap_data(target.samples, target_lap, target_trace.length_m),
+            lap_data(reference.samples, reference_lap, reference_trace.length_m),
+            segments,
+            target_car,
+        )
         return ComparisonOut(
             target=LapRef(session_id=target.record.id, lap=lap, time_ms=target_lap.time_ms),
             reference=LapRef(
@@ -104,9 +118,10 @@ def create_app(db_path: Path, static_dir: Path | None = STATIC_DIR) -> FastAPI:
             reference_channels=_channels_out(comparison.reference),
             track_x=[round(v, 1) for v in comparison.reference.pos_x],
             track_z=[round(v, 1) for v in comparison.reference.pos_z],
-            segments=[
-                SegmentOut.model_validate(s, from_attributes=True) for s in summarize(comparison)
-            ],
+            segments=[SegmentOut.model_validate(s, from_attributes=True) for s in segments],
+            target_car=_car_out(target_car, target.record.info.tyre_compound),
+            reference_car=_car_out(reference_car, reference.record.info.tyre_compound),
+            notes=[NoteOut.model_validate(n, from_attributes=True) for n in notes],
         )
 
     if static_dir is not None and (static_dir / "index.html").exists():
@@ -148,6 +163,21 @@ def _lap_out(lap: Lap) -> LapOut:
         out_lap=lap.out_lap,
         in_lap=lap.in_lap,
         off_track=lap.off_track,
+    )
+
+
+def _car_out(car: CarSummary | None, compound: str) -> CarOut | None:
+    if car is None:
+        return None
+    return CarOut(
+        tyre_compound=compound,
+        tyres=[TyreOut.model_validate(t, from_attributes=True) for t in car.tyres],
+        brake_bias=car.brake_bias,
+        tc=car.tc,
+        abs=car.abs,
+        engine_brake=car.engine_brake,
+        fuel_start_l=car.fuel_start_l,
+        fuel_end_l=car.fuel_end_l,
     )
 
 

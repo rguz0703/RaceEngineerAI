@@ -75,15 +75,7 @@ def lap_trace(
     if not lap_samples:
         raise ValueError(f"La vuelta {lap.number} no tiene muestras")
     length = track_length_m if track_length_m > 0 else _integrated_length(lap_samples)
-    positions = _unwrap(
-        [s.normalized_position for s in lap_samples], [s.lap_time_ms for s in lap_samples]
-    )
-
-    distance: list[float] = []
-    reached = 0.0
-    for position in positions:
-        reached = max(reached, min(1.0, max(0.0, position)) * length)
-        distance.append(reached)
+    distance = lap_distances(lap_samples, length)
     trace = LapTrace(
         length_m=length,
         distance_m=distance,
@@ -101,6 +93,19 @@ def lap_trace(
     if lap.time_ms is not None and distance[-1] < length:
         _insert(trace, len(trace.distance_m), length, lap.time_ms / 1000, lap_samples[-1])
     return trace
+
+
+def lap_distances(lap_samples: Sequence[TelemetrySample], length_m: float) -> list[float]:
+    """Distance from the line for each sample of one lap (non-decreasing)."""
+    positions = _unwrap(
+        [s.normalized_position for s in lap_samples], [s.lap_time_ms for s in lap_samples]
+    )
+    distance: list[float] = []
+    reached = 0.0
+    for position in positions:
+        reached = max(reached, min(1.0, max(0.0, position)) * length_m)
+        distance.append(reached)
+    return distance
 
 
 def compare_laps(target: LapTrace, reference: LapTrace, step_m: float = 5.0) -> LapComparison:

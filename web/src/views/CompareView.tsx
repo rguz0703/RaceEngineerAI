@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { api, type Comparison } from "../api";
 import { Chart, type Series } from "../components/Chart";
 import { Status } from "../components/Status";
+import { CarCard } from "../components/CarCard";
+import { Notes } from "../components/Notes";
 import { TrackMap, segmentTone } from "../components/TrackMap";
 import { lapTime, signed } from "../format";
 import { href } from "../route";
@@ -50,6 +52,10 @@ function ComparisonPanel({ c }: { c: Comparison }) {
     const s = c.segments[selected];
     return [s.start_m, s.end_m];
   }, [selected, c.segments]);
+  const flagged = useMemo(
+    () => new Set(c.notes.filter((n) => n.severity === "warn" && n.segment !== null).map((n) => n.segment!)),
+    [c.notes],
+  );
   const hasMap = c.track_x.some((v, i) => v !== c.track_x[0] || c.track_z[i] !== c.track_z[0]);
 
   const charts = useMemo(() => {
@@ -128,6 +134,22 @@ function ComparisonPanel({ c }: { c: Comparison }) {
           </ol>
         </section>
       )}
+      <section>
+        <h2>
+          Notas del ingeniero
+          {selected !== null && (
+            <button className="chip" onClick={() => setSelected(null)}>
+              ver todas
+            </button>
+          )}
+        </h2>
+        <Notes
+          notes={c.notes.filter((n) => n.topic !== "neumáticos")}
+          segments={c.segments}
+          selected={selected}
+          onSelect={(i) => setSelected(selected === i ? null : i)}
+        />
+      </section>
       <div className="analysis">
       <aside className="tramos">
         <h2>Por tramos</h2>
@@ -140,6 +162,7 @@ function ComparisonPanel({ c }: { c: Comparison }) {
               selected={selected}
               onSelect={setSelected}
               cursor={cursor}
+              flagged={flagged}
             />
           )}
           <div>
@@ -226,6 +249,16 @@ function ComparisonPanel({ c }: { c: Comparison }) {
           xRange={zoom} height={110} />
       </section>
       </div>
+      <section>
+        <h2>Coche y neumáticos</h2>
+        <CarCard
+          target={c.target_car}
+          reference={c.reference_car}
+          targetLap={c.target.lap}
+          referenceLap={c.reference.lap}
+          hints={c.notes.filter((n) => n.topic === "neumáticos").map((n) => n.text)}
+        />
+      </section>
     </>
   );
 }

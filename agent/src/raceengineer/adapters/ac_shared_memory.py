@@ -29,7 +29,7 @@ Parsing (bytes -> sample) is pure Python and runs on any OS. Only
 import ctypes
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from threading import Event
@@ -249,18 +249,33 @@ def parse_static(data: bytes) -> SPageFileStatic:
     return SPageFileStatic.from_buffer_copy(data[:STATIC_SIZE])
 
 
-def session_info_from_static(static: SPageFileStatic) -> SessionInfo:
+def session_info_from_static(
+    static: SPageFileStatic, graphics: SPageFileGraphic | None = None
+) -> SessionInfo:
     return SessionInfo(
         sim=SIM_NAME,
         track=decode_wstr(static.track),
         car=decode_wstr(static.carModel),
         track_config=decode_wstr(static.trackConfiguration),
         track_length_m=static.trackSPlineLength,
+        tyre_compound=decode_wstr(graphics.tyreCompound) if graphics is not None else "",
     )
 
 
-def to_sample(physics: SPageFilePhysics, graphics: SPageFileGraphic, t: float) -> TelemetrySample:
-    """Normalize one AC physics + graphics reading."""
+def to_sample(
+    physics: SPageFilePhysics,
+    graphics: SPageFileGraphic,
+    t: float,
+    tyre_radius: Sequence[float] = (),
+) -> TelemetrySample:
+    """Normalize one AC physics + graphics reading.
+
+    ``tyre_radius`` (from the static block) is needed for slip ratios; without it
+    they stay 0.
+    """
+    pressure = physics.wheelsPressure
+    inner, middle, outer = physics.tyreTempI, physics.tyreTempM, physics.tyreTempO
+    slip = [_slip_ratio(physics, i, tyre_radius) for i in range(4)]
     return TelemetrySample(
         t=t,
         lap_number=graphics.completedLaps,
@@ -280,7 +295,45 @@ def to_sample(physics: SPageFilePhysics, graphics: SPageFileGraphic, t: float) -
         in_pit=bool(graphics.isInPit or graphics.isInPitLane),
         last_lap_ms=_lap_ms(graphics.iLastTime),
         tyres_out=physics.numberOfTyresOut,
+        yaw_rate=physics.localAngularVel[1],
+        tyre_pressure_fl=pressure[0],
+        tyre_pressure_fr=pressure[1],
+        tyre_pressure_rl=pressure[2],
+        tyre_pressure_rr=pressure[3],
+        tyre_temp_inner_fl=inner[0],
+        tyre_temp_inner_fr=inner[1],
+        tyre_temp_inner_rl=inner[2],
+        tyre_temp_inner_rr=inner[3],
+        tyre_temp_middle_fl=middle[0],
+        tyre_temp_middle_fr=middle[1],
+        tyre_temp_middle_rl=middle[2],
+        tyre_temp_middle_rr=middle[3],
+        tyre_temp_outer_fl=outer[0],
+        tyre_temp_outer_fr=outer[1],
+        tyre_temp_outer_rl=outer[2],
+        tyre_temp_outer_rr=outer[3],
+        slip_ratio_fl=slip[0],
+        slip_ratio_fr=slip[1],
+        slip_ratio_rl=slip[2],
+        slip_ratio_rr=slip[3],
+        brake_bias=physics.brakeBias,
+        tc=physics.tc,
+        abs=physics.abs,
+        engine_brake=physics.engineBrake,
+        fuel=physics.fuel,
     )
+
+
+_MIN_SLIP_SPEED_MS = 5.0
+"""Below this the ratio is noise (parked, crawling in the pits)."""
+
+
+def _slip_ratio(physics: SPageFilePhysics, wheel: int, tyre_radius: Sequence[float]) -> float:
+    speed = physics.speedKmh / 3.6
+    if wheel >= len(tyre_radius) or speed < _MIN_SLIP_SPEED_MS:
+        return 0.0
+    ratio = (physics.wheelAngularSpeed[wheel] * tyre_radius[wheel] - speed) / speed
+    return _clamp(ratio, -1.0, 2.0)
 
 
 _MAX_LAP_MS = 60 * 60 * 1000
@@ -308,6 +361,10 @@ class SharedMemoryReader(Protocol):
 
     def read(self) -> Snapshot:
         """Return the current blocks. Raises EOFError when a recording runs out."""
+        ...
+
+    def peek(self) -> Snapshot:
+        """Like read(), but a recording does not advance."""
         ...
 
     def read_static(self) -> bytes: ...
@@ -368,13 +425,18 @@ class ACSharedMemorySource:
         self._sleep = sleep
 
     def session_info(self) -> SessionInfo:
-        return session_info_from_static(parse_static(self._reader.read_static()))
+        try:
+            graphics: SPageFileGraphic | None = parse_graphics(self._reader.peek().graphics)
+        except EOFError:
+            graphics = None
+        return session_info_from_static(parse_static(self._reader.read_static()), graphics)
 
     def samples(self) -> Iterator[TelemetrySample]:
         start: float | None = None
         last_packet: int | None = None
         was_live = False
         pacer = Pacer(self._interval, self._clock, self._sleep)
+        tyre_radius = list(parse_static(self._reader.read_static()).tyreRadius)
         while not self._stop.is_set():
             try:
                 snapshot = self._reader.read()
@@ -392,7 +454,7 @@ class ACSharedMemorySource:
                     now = self._clock()
                     if start is None:
                         start = now
-                    yield to_sample(physics, graphics, now - start)
+                    yield to_sample(physics, graphics, now - start, tyre_radius)
             pacer.wait()
 
 
@@ -483,6 +545,9 @@ if sys.platform == "win32":
 
         def read(self) -> Snapshot:
             return Snapshot(physics=self._physics.read(), graphics=self._graphics.read())
+
+        def peek(self) -> Snapshot:
+            return self.read()
 
         def read_static(self) -> bytes:
             return self._static.read()

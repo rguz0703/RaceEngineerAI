@@ -9,6 +9,8 @@ interface Props {
   selected: number | null;
   onSelect: (index: number | null) => void;
   cursor: number | null;
+  /** Segments with warnings get a marked label. */
+  flagged?: Set<number>;
 }
 
 const NEUTRAL_S = 0.02;
@@ -20,7 +22,7 @@ export function segmentTone(delta: number): "gain" | "lose" | "even" {
 }
 
 /** The reference lap's path, colored by where time is gained or lost. */
-export function TrackMap({ x, z, segments, selected, onSelect, cursor }: Props) {
+export function TrackMap({ x, z, segments, selected, onSelect, cursor, flagged }: Props) {
   const geometry = useMemo(() => {
     const minX = Math.min(...x);
     const maxX = Math.max(...x);
@@ -113,7 +115,7 @@ export function TrackMap({ x, z, segments, selected, onSelect, cursor }: Props) 
         {geometry.labels.map((p, i) => (
           <g
             key={i}
-            className={`track-label${selected === i ? " selected" : ""}`}
+            className={`track-label${selected === i ? " selected" : ""}${flagged?.has(i) ? " flagged" : ""}`}
             transform={`translate(${p.x} ${p.z})`}
             onClick={(e) => {
               e.stopPropagation();

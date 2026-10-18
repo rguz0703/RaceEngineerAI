@@ -83,6 +83,13 @@ class ScriptedReader:
         self.reads += 1
         return self._snapshots[self.reads - 1]
 
+    def peek(self) -> Snapshot:
+        if self.reads >= len(self._snapshots):
+            if self._repeat_last and self._snapshots:
+                return self._snapshots[-1]
+            raise EOFError
+        return self._snapshots[self.reads]
+
     def read_static(self) -> bytes:
         return self._static
 
