@@ -85,6 +85,7 @@ export interface Comparison {
   target: LapRef;
   reference: LapRef;
   partial: boolean;
+  reference_clean: boolean;
   distance_m: number[];
   delta_s: number[];
   target_channels: Channels;
@@ -121,6 +122,20 @@ export interface Overview {
   best_laps: BestLap[];
   progress: Progress[];
   recent: Session[];
+}
+
+export interface Track {
+  sim: string;
+  track: string;
+  track_config: string;
+  length_m: number;
+  cars: string[];
+  session_ids: number[];
+  lap_count: number;
+  best: { time_ms: number; session_id: number; lap: number; car: string; clean: boolean } | null;
+  last_driven: string;
+  outline_x: number[];
+  outline_z: number[];
 }
 
 export interface Game {
@@ -164,6 +179,7 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   overview: () => get<Overview>("/api/overview"),
+  tracks: () => get<Track[]>("/api/tracks"),
   recording: () => get<Recording>("/api/recording"),
   startRecording: () => get<Recording>("/api/recording/start", { method: "POST" }),
   stopRecording: () => get<Recording>("/api/recording/stop", { method: "POST" }),

@@ -94,6 +94,8 @@ class ComparisonOut(BaseModel):
     reference: LapRef
     partial: bool
     """One of the laps was not recorded from the line, so only part of the track is compared."""
+    reference_clean: bool
+    """False when the session had no clean lap and the fastest finished one was used."""
     distance_m: list[float]
     delta_s: list[float]
     target_channels: ChannelsOut
@@ -170,3 +172,25 @@ class OverviewOut(BaseModel):
     best_laps: list[BestLapOut]
     progress: list[ProgressOut]
     recent: list[SessionOut]
+
+
+class TrackBestOut(BaseModel):
+    time_ms: int
+    session_id: int
+    lap: int
+    car: str
+    clean: bool
+
+
+class TrackOut(BaseModel):
+    sim: str
+    track: str
+    track_config: str
+    length_m: float
+    cars: list[str]
+    session_ids: list[int]
+    lap_count: int
+    best: TrackBestOut | None
+    last_driven: datetime
+    outline_x: list[float]
+    outline_z: list[float]

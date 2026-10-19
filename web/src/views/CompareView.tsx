@@ -23,7 +23,16 @@ export function CompareView(props: Props) {
       <a className="back" href={href({ page: "session", id: props.session })}>
         ← Vueltas de la sesión {props.session}
       </a>
-      <Status state={state}>{(c) => <ComparisonPanel c={c} />}</Status>
+      {state.status === "error" ? (
+        <div className="notice">
+          <p>{state.message}</p>
+          <a className="button" href={href({ page: "pick" })}>
+            Elegir otra referencia
+          </a>
+        </div>
+      ) : (
+        <Status state={state}>{(c) => <ComparisonPanel c={c} />}</Status>
+      )}
     </>
   );
 }
@@ -110,6 +119,12 @@ function ComparisonPanel({ c }: { c: Comparison }) {
           <span className="stat-value">{signed(total)} s</span>
         </div>
       </div>
+      {!c.reference_clean && (
+        <p className="notice">
+          Esta sesión no tiene vueltas limpias, así que se compara con tu vuelta más rápida aunque tuvo una
+          salida de pista. Para una referencia limpia, elige otra sesión en Comparar.
+        </p>
+      )}
       {c.partial && (
         <p className="notice">
           Una de las vueltas no se grabó desde la meta (por ejemplo, salida de boxes). Solo se compara de{" "}

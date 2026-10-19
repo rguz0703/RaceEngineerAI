@@ -105,7 +105,7 @@ def test_compare_without_reference_lap(tmp_path: Path) -> None:
         Recorder(FakeSource(laps=2), repository).record()
     response = _client(path).get("/api/compare", params={"session": 1, "lap": 1})
     assert response.status_code == 404
-    assert "referencia" in response.json()["detail"]
+    assert "otra sesión" in response.json()["detail"]
 
 
 def test_compare_laps_without_common_stretch(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,3 +147,30 @@ def test_overview(db: Path) -> None:
 def test_overview_without_database(tmp_path: Path) -> None:
     body = _client(tmp_path / "none.sqlite").get("/api/overview").json()
     assert body["totals"]["sessions"] == 0
+
+
+def test_compare_falls_back_to_fastest_lap_without_clean_ones(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    path = tmp_path / "dirty.sqlite"
+    samples = [replace(s, tyres_out=4) for s in FakeSource(laps=3).samples()]
+    with SqliteSessionRepository(path) as repository:
+        sid = repository.create_session(FakeSource().session_info(), datetime.now(UTC))
+        repository.append_samples(sid, samples)
+
+    body = _client(path).get("/api/compare", params={"session": sid, "lap": 2}).json()
+
+    assert body["reference"]["lap"] == 1
+    assert body["reference_clean"] is False
+
+
+def test_tracks(db: Path) -> None:
+    [track] = _client(db).get("/api/tracks").json()
+    assert track["track"] == "synthetic_oval"
+    assert track["session_ids"] == [2, 1]
+    assert track["best"]["clean"] is True
+    assert len(track["outline_x"]) > 10
+
+
+def test_tracks_without_database(tmp_path: Path) -> None:
+    assert _client(tmp_path / "none.sqlite").get("/api/tracks").json() == []
