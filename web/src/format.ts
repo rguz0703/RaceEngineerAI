@@ -19,14 +19,17 @@ export function lapKind(lap: Lap): string {
   return lap.complete ? "Lanzada" : "Incompleta";
 }
 
-/** "ks_porsche_911_gt3_cup_2017" -> "Porsche 911 GT3 Cup 2017". */
+/** "ks_porsche_911_gt3_cup_2017" -> "Porsche 911 GT3 Cup 2017"; "layout_gp" -> "GP". */
 export function prettyName(id: string): string {
   return id
     .replace(/^ks_/, "")
+    .replace(/^layout_/, "")
     .split("_")
     .filter(Boolean)
     .map((word) =>
-      /\d/.test(word) && /[a-z]/i.test(word) ? word.toUpperCase() : word[0].toUpperCase() + word.slice(1),
+      (/\d/.test(word) && /[a-z]/i.test(word)) || word.length <= 2
+        ? word.toUpperCase()
+        : word[0].toUpperCase() + word.slice(1),
     )
     .join(" ");
 }
