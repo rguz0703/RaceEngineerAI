@@ -85,6 +85,7 @@ export interface Comparison {
   target: LapRef;
   reference: LapRef;
   partial: boolean;
+  reference_clean: boolean;
   distance_m: number[];
   delta_s: number[];
   target_channels: Channels;

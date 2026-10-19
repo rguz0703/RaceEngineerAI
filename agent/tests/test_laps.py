@@ -155,3 +155,17 @@ def test_counter_bump_with_stale_official_time_is_still_read() -> None:
     [lap, _] = segment_laps(samples)
 
     assert (lap.time_ms, lap.official) == (138_459, True)
+
+
+def test_default_reference_prefers_clean_laps() -> None:
+    from raceengineer.analysis.laps import default_reference
+    from raceengineer.domain.models import Lap
+
+    clean = Lap(1, 0, 10, 100_000, True, True, False, False, False)
+    dirty_fast = Lap(2, 10, 20, 90_000, True, True, False, False, True)
+    unfinished = Lap(3, 20, 30, None, False, False, False, False, False)
+
+    assert default_reference([clean, dirty_fast, unfinished]) == (clean, True)
+    # No clean lap left: fall back to the fastest finished one, flagged as not clean.
+    assert default_reference([clean, dirty_fast], exclude=clean) == (dirty_fast, False)
+    assert default_reference([dirty_fast, unfinished], exclude=dirty_fast) == (None, False)

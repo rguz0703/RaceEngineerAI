@@ -423,6 +423,7 @@ tr.best td {
   background: var(--warn-bg);
   color: var(--warn-text);
   padding: 10px 14px;
+  margin: 12px 0;
   border-radius: var(--radius);
 }
 
@@ -1384,4 +1385,13 @@ select {
   .steer {
     grid-template-columns: 74px 1fr 52px;
   }
+}
+
+.notice p {
+  margin: 0 0 10px;
+}
+
+.notice .button {
+  color: var(--text);
+  border-color: var(--warn-text);
 }

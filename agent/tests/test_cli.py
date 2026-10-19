@@ -335,3 +335,21 @@ def test_serve_demo_flag(
     monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
     assert main(["--db", str(tmp_path / "s.sqlite"), "serve", "--demo"]) == 0
     assert "Modo demo" in capsys.readouterr().out
+
+
+def test_compare_cli_warns_when_reference_is_not_clean(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    from raceengineer.adapters.fake import FakeSource
+
+    db = tmp_path / "s.sqlite"
+    samples = [replace(s, tyres_out=4) for s in FakeSource(laps=3).samples()]
+    with SqliteSessionRepository(db) as repo:
+        sid = repo.create_session(FakeSource().session_info(), datetime.now(UTC))
+        repo.append_samples(sid, samples)
+
+    assert main(["--db", str(db), "compare", str(sid), "2"]) == 0
+    assert "No hay vueltas limpias" in capsys.readouterr().out

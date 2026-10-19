@@ -160,3 +160,17 @@ def best_clean_lap(laps: Sequence[Lap], exclude: Lap | None = None) -> Lap | Non
         and lap != exclude
     ]
     return min(candidates, key=lambda lap: lap.time_ms or 0, default=None)
+
+
+def default_reference(laps: Sequence[Lap], exclude: Lap | None = None) -> tuple[Lap | None, bool]:
+    """The lap to compare against when none is chosen, and whether it is clean.
+
+    The best clean lap if there is one; otherwise the fastest finished lap, even
+    with an off-track moment, so a session without clean laps still compares.
+    """
+    clean = best_clean_lap(laps, exclude)
+    if clean is not None:
+        return clean, True
+    finished = [lap for lap in laps if lap.time_ms is not None and lap != exclude]
+    fastest = min(finished, key=lambda lap: lap.time_ms or 0, default=None)
+    return fastest, False

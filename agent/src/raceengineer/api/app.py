@@ -15,7 +15,7 @@ from raceengineer.analysis import lap_index
 from raceengineer.analysis.car import CarSummary, summarize_car
 from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
 from raceengineer.analysis.diagnosis import diagnose, lap_data
-from raceengineer.analysis.laps import best_clean_lap
+from raceengineer.analysis.laps import best_clean_lap, default_reference
 from raceengineer.analysis.overview import overview
 from raceengineer.api.schemas import (
     BestLapOut,
@@ -195,14 +195,19 @@ def create_app(
         target = load(session)
         reference = target if ref_session in (None, session) else load(ref_session)
         target_lap = _finished_lap(target, lap)
+        reference_clean = True
         if ref_lap is not None:
             reference_lap = _finished_lap(reference, ref_lap)
         else:
             exclude = target_lap if reference is target else None
-            best = best_clean_lap(reference.laps, exclude)
-            if best is None:
-                raise HTTPException(404, "No hay vuelta de referencia terminada; elige una")
-            reference_lap = best
+            fallback, reference_clean = default_reference(reference.laps, exclude)
+            if fallback is None:
+                raise HTTPException(
+                    404,
+                    "Esta sesión no tiene otra vuelta terminada para comparar. "
+                    "Elige una referencia de otra sesión en Comparar.",
+                )
+            reference_lap = fallback
         # Only the two laps' samples are read, whatever the session length.
         target_samples, target_lap = load_lap(target, target_lap)
         reference_samples, reference_lap = load_lap(reference, reference_lap)
@@ -231,6 +236,7 @@ def create_app(
                 time_ms=reference_lap.time_ms,
             ),
             partial=not (target_lap.complete and reference_lap.complete),
+            reference_clean=reference_clean,
             distance_m=comparison.distance_m,
             delta_s=comparison.delta_s,
             target_channels=_channels_out(comparison.target),

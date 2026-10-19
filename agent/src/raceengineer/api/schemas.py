@@ -94,6 +94,8 @@ class ComparisonOut(BaseModel):
     reference: LapRef
     partial: bool
     """One of the laps was not recorded from the line, so only part of the track is compared."""
+    reference_clean: bool
+    """False when the session had no clean lap and the fastest finished one was used."""
     distance_m: list[float]
     delta_s: list[float]
     target_channels: ChannelsOut

@@ -28,7 +28,7 @@ from raceengineer.adapters.ac_shared_memory import (
 from raceengineer.adapters.fake import FakeSource
 from raceengineer.analysis import lap_index
 from raceengineer.analysis.compare import compare_laps, lap_trace, summarize, write_csv
-from raceengineer.analysis.laps import best_clean_lap
+from raceengineer.analysis.laps import default_reference
 from raceengineer.capture.realtime import RealtimeSource
 from raceengineer.capture.recorder import Recorder
 from raceengineer.capture.service import RecordingService, SourceUnavailableError
@@ -265,7 +265,9 @@ def _compare_in(
         ref_lap = _find_lap(reference.laps, args.ref)
     else:
         exclude = target_lap if reference is target else None
-        ref_lap = best_clean_lap(reference.laps, exclude)
+        ref_lap, clean = default_reference(reference.laps, exclude)
+        if ref_lap is not None and not clean:
+            print("No hay vueltas limpias: se compara con la más rápida (tuvo salida de pista).")
     if ref_lap is None or ref_lap.time_ms is None:
         print("No hay vuelta de referencia terminada. Indica una con --ref.")
         return 1

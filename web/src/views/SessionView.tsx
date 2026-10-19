@@ -42,7 +42,9 @@ function LapsTable({ sessionId, laps, best }: { sessionId: number; laps: Lap[]; 
         <label>
           Comparar contra{" "}
           <select value={reference} onChange={(e) => setReference(e.target.value)}>
-            <option value="best">mejor vuelta limpia{best !== null ? ` (${best})` : ""}</option>
+            <option value="best">
+              {best !== null ? `mejor vuelta limpia (${best})` : "mejor vuelta (no hay limpias)"}
+            </option>
             {finished.map((l) => (
               <option key={l.number} value={l.number}>
                 vuelta {l.number} · {lapTime(l.time_ms)}
