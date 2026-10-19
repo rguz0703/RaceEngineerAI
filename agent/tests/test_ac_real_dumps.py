@@ -162,6 +162,9 @@ def test_f3_dump_car_state_and_notes() -> None:
     assert car is not None
     assert 20 < car.tyres[0].pressure_psi < 30
     assert car.brake_bias == pytest.approx(0.62)
+    # Negative camber: every tyre runs hotter on the inner edge (left wheels included).
+    for tyre in car.tyres:
+        assert tyre.temp_inner_c > tyre.temp_outer_c, tyre.wheel
     # Laps 1 and 3 locked the front left under braking (slip ratio near -0.7).
     assert min(s.slip_ratio_fl for s in samples) < -0.5
 

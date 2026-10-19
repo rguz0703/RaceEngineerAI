@@ -15,14 +15,16 @@ function tempColor(c: number): string {
 }
 
 function TyreBox({ tyre, other }: { tyre: Tyre; other?: Tyre }) {
-  // Edges in the order AC names them (I, M, O). Which physical side "I" is has not
-  // been confirmed yet, so the strip is not mirrored for left wheels.
-  const temps = [tyre.temp_inner_c, tyre.temp_middle_c, tyre.temp_outer_c];
+  // Seen from above: the inner edge faces the car, so on left wheels it is on the right.
+  const left = tyre.wheel === "fl" || tyre.wheel === "rl";
+  const temps = left
+    ? [tyre.temp_outer_c, tyre.temp_middle_c, tyre.temp_inner_c]
+    : [tyre.temp_inner_c, tyre.temp_middle_c, tyre.temp_outer_c];
   const dp = other ? tyre.pressure_psi - other.pressure_psi : 0;
   return (
     <div className="tyre">
       <div className="tyre-label">{WHEEL_LABEL[tyre.wheel]}</div>
-      <div className="tyre-strip" title="Temperatura I / M / O según AC">
+      <div className="tyre-strip" title="Temperatura de borde a borde, vista desde arriba">
         {temps.map((c, i) => (
           <span key={i} style={{ background: tempColor(c) }}>
             {Math.round(c)}°
@@ -109,8 +111,8 @@ export function CarCard({ target, reference, targetLap, referenceLap, hints }: {
         </ul>
       )}
       <p className="muted small">
-        Promedios en pista. Cada llanta muestra la temperatura en tres zonas (I · M · O, como las nombra el juego)
-        y la presión; ▲▼ = diferencia con la referencia. Aún falta confirmar qué borde es el interior.
+        Promedios en pista. Cada llanta muestra la temperatura de borde a borde (vista desde arriba, el borde interior
+        hacia el coche) y la presión; ▲▼ = diferencia con la referencia.
       </p>
       <div className="table-wrap">
         <table>
