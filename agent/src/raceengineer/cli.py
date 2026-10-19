@@ -35,6 +35,7 @@ from raceengineer.capture.service import RecordingService, SourceUnavailableErro
 from raceengineer.domain.models import Lap, SessionInfo
 from raceengineer.domain.ports import TelemetrySource
 from raceengineer.storage.sqlite import SqliteSessionRepository
+from raceengineer.storage.transfer import export_session, import_session
 
 DEFAULT_DB = Path("data") / "sessions.sqlite"
 DEFAULT_DUMP_DIR = Path("data") / "dumps"
@@ -86,6 +87,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compare.add_argument("--csv", type=Path, help="exportar la comparación metro a metro")
 
+    export = commands.add_parser(
+        "export-session", help="guardar una sesión en un archivo para pasarla a otro equipo"
+    )
+    export.add_argument("session_id", type=int)
+    export.add_argument(
+        "--output", type=Path, help="archivo (por defecto data/exports/sesion-N.rese.gz)"
+    )
+
+    import_ = commands.add_parser("import-session", help="añadir una sesión exportada")
+    import_.add_argument("file", type=Path)
+
     serve = commands.add_parser("serve", help="abrir el dashboard web")
     serve.add_argument("--port", type=int, default=8000, help="puerto (por defecto 8000)")
     serve.add_argument(
@@ -127,6 +139,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _compare(args)
         if args.command == "serve":
             return _serve(args)
+        if args.command == "export-session":
+            return _export_session(args)
+        if args.command == "import-session":
+            return _import_session(args)
         if args.command == "dump-raw":
             return _dump_raw(args)
     except ACNotRunningError as exc:
@@ -346,6 +362,31 @@ def _print_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
     for row in [header, *rows]:
         cells = (cell.ljust(width) for cell, width in zip(row, widths, strict=True))
         print("  ".join(cells).rstrip())
+
+
+def _export_session(args: argparse.Namespace) -> int:
+    output: Path = args.output or Path("data") / "exports" / f"sesion-{args.session_id}.rese.gz"
+    if not args.db.exists():
+        print(f"No hay sesiones todavía ({args.db} no existe).")
+        return 1
+    try:
+        export_session(args.db, args.session_id, output)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
+    size_mb = output.stat().st_size / 1e6
+    print(f"Sesión {args.session_id} exportada a {output} ({size_mb:.1f} MB)")
+    return 0
+
+
+def _import_session(args: argparse.Namespace) -> int:
+    try:
+        new_id = import_session(args.file, args.db)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Error: {exc}")
+        return 1
+    print(f"Sesión importada como sesión {new_id} en {args.db}")
+    return 0
 
 
 def _serve(args: argparse.Namespace) -> int:

@@ -209,6 +209,35 @@ una nueva para verlos.
 
 ## 7. Enviar los resultados al Mac
 
+### Sesiones grabadas
+
+Para pasar una sesión a la Mac (para analizarla o usarla en pruebas):
+
+```powershell
+uv run raceengineer sessions
+uv run raceengineer export-session N
+```
+
+(`N` es el número de la sesión). Crea `data\exports\sesion-N.rese.gz`; pesa
+unos 11 MB por cada 10 minutos. Súbelo como archivo adjunto de una "release"
+privada del repositorio, para no meterlo en el código. La primera vez, crea la
+release:
+
+```powershell
+gh release create datos-sesiones --title "Sesiones para pruebas" --notes "Sesiones reales exportadas con export-session"
+```
+
+Y después, para cada sesión:
+
+```powershell
+gh release upload datos-sesiones data\exports\sesion-N.rese.gz
+```
+
+En la Mac se descarga con `gh release download datos-sesiones` y se añade con
+`uv run raceengineer import-session sesion-N.rese.gz`.
+
+### Volcados crudos
+
 Copia y pega en el chat la salida de `sessions` y de `laps`, junto con los tiempos
 que viste en el juego.
 
