@@ -1,11 +1,12 @@
 """FastAPI application: recorded sessions, laps and lap comparisons, plus the dashboard."""
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -34,6 +35,7 @@ from raceengineer.api.schemas import (
     TotalsOut,
     TyreOut,
 )
+from raceengineer.capture.live import LiveFrame, ReferenceLap
 from raceengineer.capture.service import RecordingService, RecordingState, RecordingStatus
 from raceengineer.domain.models import Lap, SessionRecord, TelemetrySample
 from raceengineer.storage.sqlite import SqliteSessionRepository
@@ -52,6 +54,7 @@ def create_app(
     static_dir: Path | None = STATIC_DIR,
     recorder: RecordingService | None = None,
     probe: Callable[[], GameProbe] | None = None,
+    live_hz: float = 20.0,
 ) -> FastAPI:
     """``recorder`` enables start/stop from the dashboard; ``probe`` reports the game's state."""
 
@@ -91,6 +94,29 @@ def create_app(
             last_session_id=status.last_session_id,
             game=game,
         )
+
+    @app.websocket("/ws/live")
+    async def live(ws: WebSocket) -> None:
+        """Pushes the live frame ~20 times a second; the track outline only when it changes."""
+        await ws.accept()
+        sent_reference: tuple[str, int] | None = None
+        try:
+            while True:
+                frame, reference = recorder.live() if recorder is not None else (None, None)
+                status = recorder.status() if recorder is not None else RecordingStatus()
+                message: dict[str, object] = {
+                    "state": status.state.value,
+                    "game": status.game_status,
+                    "frame": _frame_out(frame) if frame is not None else None,
+                }
+                key = (reference.label, reference.time_ms) if reference is not None else None
+                if key != sent_reference:
+                    message["reference"] = _reference_out(reference)
+                    sent_reference = key
+                await ws.send_json(message)
+                await asyncio.sleep(1 / live_hz)
+        except WebSocketDisconnect:
+            return
 
     @app.get("/api/recording")
     def recording_status() -> RecordingOut:
@@ -220,6 +246,26 @@ def create_app(
     if static_dir is not None and (static_dir / "index.html").exists():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="dashboard")
     return app
+
+
+def _frame_out(frame: LiveFrame) -> dict[str, object]:
+    out: dict[str, object] = {}
+    for name, value in asdict(frame).items():
+        out[name] = round(value, 3) if isinstance(value, float) else value
+    return out
+
+
+def _reference_out(reference: ReferenceLap | None) -> dict[str, object] | None:
+    if reference is None:
+        return None
+    xs, zs = reference.outline()
+    return {
+        "label": reference.label,
+        "time_ms": reference.time_ms,
+        "length_m": round(reference.distance_m[-1], 1),
+        "x": [round(v, 1) for v in xs],
+        "z": [round(v, 1) for v in zs],
+    }
 
 
 def _validated[M: BaseModel](model: type[M], value: object) -> M:

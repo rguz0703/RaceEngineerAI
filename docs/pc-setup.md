@@ -107,7 +107,10 @@ Deja esa ventana abierta y abre el dashboard en el celular o en la Mac
 1. Arriba verás el estado del juego: **cerrado**, **en el menú** o **en pista**.
 2. Pulsa **● Grabar**. Si todavía no estás en pista, el programa espera y
    arranca solo cuando salgas.
-3. Mientras manejas verás la vuelta, el cronómetro, la última y la mejor.
+3. Mientras manejas, abre la pestaña **En vivo**: delta contra tu mejor vuelta
+   en ese circuito y coche (verde vas ganando, rojo perdiendo), velocidad,
+   marcha, RPM, acelerador, freno, volante y tu posición en el mapa. Si haces
+   una vuelta limpia más rápida, pasa a ser la referencia.
 4. Pulsa **■ Detener**, o simplemente vuelve al menú de AC: la sesión se guarda
    y aparece en la lista, lista para comparar.
 

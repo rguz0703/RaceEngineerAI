@@ -4,6 +4,7 @@ import { useRoute } from "./route";
 import { useRecording } from "./useRecording";
 import { CompareView } from "./views/CompareView";
 import { HomeView } from "./views/HomeView";
+import { LiveView } from "./views/LiveView";
 import { PickView } from "./views/PickView";
 import { SessionsView } from "./views/SessionsView";
 import { SessionView } from "./views/SessionView";
@@ -28,6 +29,7 @@ export function App() {
       <Nav route={route} recording={control.recording} />
       <main className="page">
         {route.page === "home" && <HomeView control={control} version={version} />}
+        {route.page === "live" && <LiveView control={control} />}
         {route.page === "sessions" && <SessionsView version={version} />}
         {route.page === "session" && <SessionView id={route.id} />}
         {route.page === "pick" && <PickView />}

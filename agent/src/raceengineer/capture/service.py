@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Event
 
 from raceengineer.analysis import lap_index
+from raceengineer.capture.live import LiveFrame, LiveTracker, ReferenceLap, best_reference
 from raceengineer.capture.recorder import Recorder
 from raceengineer.domain.models import TelemetrySample
 from raceengineer.domain.ports import TelemetrySource
@@ -69,6 +70,15 @@ class RecordingService:
         self._stop = Event()
         self._thread: threading.Thread | None = None
         self._source: TelemetrySource | None = None
+        self._live: LiveTracker | None = None
+
+    def live(self) -> tuple[LiveFrame | None, ReferenceLap | None]:
+        """Latest live frame and the reference lap it is measured against."""
+        tracker = self._live
+        if tracker is None:
+            return None, None
+        with self._lock:
+            return tracker.frame, tracker.reference
 
     def status(self) -> RecordingStatus:
         with self._lock:
@@ -116,12 +126,15 @@ class RecordingService:
             self._source = source
             try:
                 with SqliteSessionRepository(self._db_path) as repository:
+                    info = source.session_info()
+                    self._live = LiveTracker(info.track_length_m, best_reference(repository, info))
                     result = Recorder(source, repository).record(
                         stop, on_sample=self._on_sample, on_start=self._on_start
                     )
                     laps = lap_index.session_laps(repository, result.session_id)
             finally:
                 self._source = None
+                self._live = None
                 close()
             finished = sum(lap.time_ms is not None for lap in laps)
             laps_text = "1 vuelta terminada" if finished == 1 else f"{finished} vueltas terminadas"
@@ -153,6 +166,8 @@ class RecordingService:
 
     def _on_sample(self, sample: TelemetrySample) -> None:
         with self._lock:
+            if self._live is not None:
+                self._live.update(sample)
             status = self._status
             best = status.best_lap_ms
             if sample.last_lap_ms and (best == 0 or sample.last_lap_ms < best):

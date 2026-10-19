@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 // Hash routes keep the dashboard a set of static files the agent can serve as-is.
 export type Route =
   | { page: "home" }
+  | { page: "live" }
   | { page: "sessions" }
   | { page: "pick" }
   | { page: "session"; id: number }
@@ -16,6 +17,7 @@ export function parseRoute(hash: string): Route {
     const value = params.get(key);
     return value === null || value === "" ? undefined : Number(value);
   };
+  if (parts[0] === "live") return { page: "live" };
   if (parts[0] === "sessions" && parts[1]) return { page: "session", id: Number(parts[1]) };
   if (parts[0] === "sessions") return { page: "sessions" };
   if (parts[0] === "compare") {
@@ -33,6 +35,8 @@ export function href(route: Route): string {
   switch (route.page) {
     case "home":
       return "#/";
+    case "live":
+      return "#/live";
     case "sessions":
       return "#/sessions";
     case "pick":

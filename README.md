@@ -3,7 +3,7 @@
 Ingeniero de carrera para sim racing: captura telemetría del simulador, analiza
 tus vueltas y te dice dónde y cómo mejorar, en vivo o después de la sesión.
 
-> Estado: **Fase 5a** (dashboard web de sesiones grabadas). La captura de Assetto Corsa por
+> Estado: **Fase 5b** (dashboard web con telemetría en vivo). La captura de Assetto Corsa por
 > memoria compartida está verificada con el juego (AC 1.16.4). Ver
 > [docs/architecture.md](docs/architecture.md) y la guía de la PC en
 > [docs/pc-setup.md](docs/pc-setup.md).
