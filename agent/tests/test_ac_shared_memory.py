@@ -242,3 +242,16 @@ def test_probe_game_states() -> None:
     gone = probe_game(missing)
     assert gone.state in ("closed", "unavailable")
     assert gone.message == "no"
+
+
+def test_left_wheels_swap_tyre_edges() -> None:
+    """AC's I/O are the tyre's left/right sides; on left wheels "O" faces the car."""
+    physics = parse_physics(physics_bytes())
+    for wheel in range(4):
+        physics.tyreTempI[wheel] = 60.0
+        physics.tyreTempO[wheel] = 80.0
+    sample = to_sample(physics, parse_graphics(graphics_bytes()), 0.0)
+    assert (sample.tyre_temp_inner_fl, sample.tyre_temp_outer_fl) == (80.0, 60.0)
+    assert (sample.tyre_temp_inner_rl, sample.tyre_temp_outer_rl) == (80.0, 60.0)
+    assert (sample.tyre_temp_inner_fr, sample.tyre_temp_outer_fr) == (60.0, 80.0)
+    assert (sample.tyre_temp_inner_rr, sample.tyre_temp_outer_rr) == (60.0, 80.0)

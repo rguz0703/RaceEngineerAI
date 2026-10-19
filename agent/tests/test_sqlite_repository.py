@@ -113,3 +113,31 @@ def test_upgrades_version_1_database(tmp_path: Path) -> None:
     assert record.info.track_length_m == 0.0
     assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     conn.close()
+
+
+def test_v6_fixes_left_tyre_edges_of_ac_sessions_only(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    db = tmp_path / "v5.sqlite"
+    base = next(iter(FakeSource(laps=1).samples()))
+    sample = replace(
+        base, tyre_temp_inner_fl=60.0, tyre_temp_outer_fl=80.0, tyre_temp_inner_fr=70.0
+    )
+    with SqliteSessionRepository(db) as repo:
+        ac = repo.create_session(INFO, START)
+        other = repo.create_session(SessionInfo("fake", "t", "c"), START)
+        repo.append_samples(ac, [sample])
+        repo.append_samples(other, [sample])
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE sessions SET sim = 'assetto_corsa' WHERE id = ?", (ac,))
+    conn.execute("PRAGMA user_version = 5")
+    conn.commit()
+    conn.close()
+
+    with SqliteSessionRepository(db) as repo:
+        [fixed] = repo.load_samples(ac)
+        [untouched] = repo.load_samples(other)
+
+    assert (fixed.tyre_temp_inner_fl, fixed.tyre_temp_outer_fl) == (80.0, 60.0)
+    assert fixed.tyre_temp_inner_fr == 70.0  # right wheels unchanged
+    assert (untouched.tyre_temp_inner_fl, untouched.tyre_temp_outer_fl) == (60.0, 80.0)

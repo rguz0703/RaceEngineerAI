@@ -83,15 +83,8 @@ def summarize_car(samples: Sequence[TelemetrySample], lap: Lap) -> CarSummary | 
     )
 
 
-def tyre_hints(summary: CarSummary, camber: bool = False) -> list[TyreHint]:
-    """Classic readings of temperatures across the tread (inner, middle, outer).
-
-    Camber readings are off by default: in real sessions at Monza and the Red Bull
-    Ring the hotter edge mirrored between left and right wheels, which suggests AC
-    may label the tread edges left/right rather than inner/outer. Re-enable once a
-    counter-clockwise track settles it. Pressure readings (middle vs both edges)
-    do not depend on which edge is which.
-    """
+def tyre_hints(summary: CarSummary, camber: bool = True) -> list[TyreHint]:
+    """Classic readings of temperatures across the tread (inner, middle, outer)."""
     hints = []
     for tyre in summary.tyres:
         name = WHEEL_NAMES[tyre.wheel]

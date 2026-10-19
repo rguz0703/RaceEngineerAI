@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import Lap, LapSignals, SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -273,6 +273,14 @@ _MIGRATIONS = [
         ]
     ),
     "ALTER TABLE sessions ADD COLUMN laps_sample_count INTEGER;\n" + _LAPS_TABLE,
+    # v6: AC samples recorded before the fix stored the left wheels' tyre edges
+    # swapped (see to_sample); swap them back. UPDATE reads the old values.
+    """
+    UPDATE samples SET
+        tyre_temp_inner_fl = tyre_temp_outer_fl, tyre_temp_outer_fl = tyre_temp_inner_fl,
+        tyre_temp_inner_rl = tyre_temp_outer_rl, tyre_temp_outer_rl = tyre_temp_inner_rl
+    WHERE session_id IN (SELECT id FROM sessions WHERE sim = 'assetto_corsa');
+    """,
 ]
 
 

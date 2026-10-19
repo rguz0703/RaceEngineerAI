@@ -64,13 +64,13 @@ def test_summarize_car_without_data() -> None:
     ],
 )
 def test_tyre_hints(temps: tuple[float, float, float], expected: str) -> None:
-    hints = tyre_hints(_car(_tyre("fr", *temps)), camber=True)
+    hints = tyre_hints(_car(_tyre("fr", *temps)))
     assert any(expected in h.text for h in hints)
     assert all(h.wheel == "fr" for h in hints)
 
 
-def test_camber_hints_are_off_by_default() -> None:
-    hints = tyre_hints(_car(_tyre("fl", 70, 75, 80), _tyre("fr", 80, 90, 80)))
+def test_camber_hints_can_be_switched_off() -> None:
+    hints = tyre_hints(_car(_tyre("fl", 70, 75, 80), _tyre("fr", 80, 90, 80)), camber=False)
     assert [h.text for h in hints if "caída" in h.text] == []
     assert any("presión" in h.text for h in hints)
 

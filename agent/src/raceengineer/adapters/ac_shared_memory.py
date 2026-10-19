@@ -274,7 +274,14 @@ def to_sample(
     they stay 0.
     """
     pressure = physics.wheelsPressure
-    inner, middle, outer = physics.tyreTempI, physics.tyreTempM, physics.tyreTempO
+    # AC's tyreTempI/O name the left/right side of each tyre, not inner/outer to the
+    # car: on the left wheels "O" is the edge facing the car. Verified with real
+    # sessions at Monza and the Red Bull Ring (clockwise) and Imola
+    # (counter-clockwise): the hotter edge never followed the turn direction, and
+    # with this mapping all four tyres run hotter on the inner edge (negative camber).
+    side_i, middle, side_o = physics.tyreTempI, physics.tyreTempM, physics.tyreTempO
+    inner = [side_o[0], side_i[1], side_o[2], side_i[3]]
+    outer = [side_i[0], side_o[1], side_i[2], side_o[3]]
     slip = [_slip_ratio(physics, i, tyre_radius) for i in range(4)]
     return TelemetrySample(
         t=t,
