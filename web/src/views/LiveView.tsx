@@ -62,15 +62,20 @@ function LivePanel({
   return (
     <div className="live">
       <section className={`panel live-delta ${tone}`}>
+        <span className="live-best">
+          <span className="label">Tu mejor vuelta</span>
+          <span className="live-best-value mono">{reference ? lapTime(reference.time_ms) : "—:—.———"}</span>
+          <span className="muted small">
+            {reference ? reference.label : "Termina una vuelta limpia para tener referencia"}
+          </span>
+        </span>
+        <span className="live-divider" aria-hidden="true" />
         <span className="label">
-          Delta {reference ? `vs ${lapTime(reference.time_ms)}` : ""}
+          Delta
           {paused && <span className="badge warn">en pausa</span>}
           {frame.in_pit && <span className="badge warn">boxes</span>}
         </span>
         <span className="live-delta-value mono">{delta === null ? "—" : signed(delta, 2)}</span>
-        <span className="muted small">
-          {reference ? `Referencia: ${reference.label}` : "Sin referencia todavía: termina una vuelta limpia"}
-        </span>
       </section>
 
       <section className="live-grid">

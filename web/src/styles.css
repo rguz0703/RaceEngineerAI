@@ -1126,6 +1126,28 @@ select {
   text-align: center;
 }
 
+.live-best {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.live-best-value {
+  font-size: clamp(2.2rem, 11vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.live-divider {
+  width: 60%;
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0 8px;
+}
+
 .live-delta-value {
   font-size: clamp(3.2rem, 16vw, 6rem);
   font-weight: 700;
@@ -1133,11 +1155,55 @@ select {
   letter-spacing: -0.04em;
 }
 
-.live-delta.gain .live-delta-value {
+.live-delta.gain .live-best {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.live-best-value {
+  font-size: clamp(2.2rem, 11vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.live-divider {
+  width: 60%;
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0 8px;
+}
+
+.live-delta-value {
   color: var(--gain);
 }
 
-.live-delta.lose .live-delta-value {
+.live-delta.lose .live-best {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.live-best-value {
+  font-size: clamp(2.2rem, 11vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.live-divider {
+  width: 60%;
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0 8px;
+}
+
+.live-delta-value {
   color: var(--lose);
 }
 
