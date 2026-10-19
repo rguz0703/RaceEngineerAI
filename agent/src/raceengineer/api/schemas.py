@@ -172,3 +172,25 @@ class OverviewOut(BaseModel):
     best_laps: list[BestLapOut]
     progress: list[ProgressOut]
     recent: list[SessionOut]
+
+
+class TrackBestOut(BaseModel):
+    time_ms: int
+    session_id: int
+    lap: int
+    car: str
+    clean: bool
+
+
+class TrackOut(BaseModel):
+    sim: str
+    track: str
+    track_config: str
+    length_m: float
+    cars: list[str]
+    session_ids: list[int]
+    lap_count: int
+    best: TrackBestOut | None
+    last_driven: datetime
+    outline_x: list[float]
+    outline_z: list[float]

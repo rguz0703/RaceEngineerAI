@@ -162,3 +162,15 @@ def test_compare_falls_back_to_fastest_lap_without_clean_ones(tmp_path: Path) ->
 
     assert body["reference"]["lap"] == 1
     assert body["reference_clean"] is False
+
+
+def test_tracks(db: Path) -> None:
+    [track] = _client(db).get("/api/tracks").json()
+    assert track["track"] == "synthetic_oval"
+    assert track["session_ids"] == [2, 1]
+    assert track["best"]["clean"] is True
+    assert len(track["outline_x"]) > 10
+
+
+def test_tracks_without_database(tmp_path: Path) -> None:
+    assert _client(tmp_path / "none.sqlite").get("/api/tracks").json() == []

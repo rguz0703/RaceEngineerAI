@@ -17,6 +17,7 @@ from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, sum
 from raceengineer.analysis.diagnosis import diagnose, lap_data
 from raceengineer.analysis.laps import best_clean_lap, default_reference
 from raceengineer.analysis.overview import overview
+from raceengineer.analysis.tracks import summarize_tracks
 from raceengineer.api.schemas import (
     BestLapOut,
     CarOut,
@@ -33,6 +34,7 @@ from raceengineer.api.schemas import (
     SessionLapsOut,
     SessionOut,
     TotalsOut,
+    TrackOut,
     TyreOut,
 )
 from raceengineer.capture.live import LiveFrame, ReferenceLap
@@ -160,6 +162,20 @@ def create_app(
             return [
                 (r, lap_index.session_laps(repository, r.id)) for r in repository.list_sessions()
             ]
+
+    @app.get("/api/tracks")
+    def tracks() -> list[TrackOut]:
+        sessions = all_sessions()
+        if not sessions:
+            return []
+        with SqliteSessionRepository(db_path) as repository:
+
+            def outline(session_id: int, lap: Lap) -> tuple[list[float], list[float]]:
+                samples, _ = lap_index.load_lap(repository, session_id, lap)
+                return [s.pos_x for s in samples], [s.pos_z for s in samples]
+
+            summaries = summarize_tracks(sessions, outline)
+        return [_validated(TrackOut, t) for t in summaries]
 
     @app.get("/api/overview")
     def home() -> OverviewOut:
