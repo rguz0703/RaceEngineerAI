@@ -83,8 +83,15 @@ def summarize_car(samples: Sequence[TelemetrySample], lap: Lap) -> CarSummary | 
     )
 
 
-def tyre_hints(summary: CarSummary) -> list[TyreHint]:
-    """Classic readings of temperatures across the tread (inner, middle, outer)."""
+def tyre_hints(summary: CarSummary, camber: bool = False) -> list[TyreHint]:
+    """Classic readings of temperatures across the tread (inner, middle, outer).
+
+    Camber readings are off by default: in real sessions at Monza and the Red Bull
+    Ring the hotter edge mirrored between left and right wheels, which suggests AC
+    may label the tread edges left/right rather than inner/outer. Re-enable once a
+    counter-clockwise track settles it. Pressure readings (middle vs both edges)
+    do not depend on which edge is which.
+    """
     hints = []
     for tyre in summary.tyres:
         name = WHEEL_NAMES[tyre.wheel]
@@ -106,19 +113,21 @@ def tyre_hints(summary: CarSummary) -> list[TyreHint]:
                     f"bordes; la presión ({tyre.pressure_psi:.1f} psi) podría estar baja.",
                 )
             )
-        camber = tyre.temp_inner_c - tyre.temp_outer_c
-        if camber > CAMBER_MAX_C:
+        if not camber:
+            continue
+        spread_io = tyre.temp_inner_c - tyre.temp_outer_c
+        if spread_io > CAMBER_MAX_C:
             hints.append(
                 TyreHint(
                     tyre.wheel,
-                    f"{name.capitalize()}: el borde interior va {camber:.0f} °C más caliente "
+                    f"{name.capitalize()}: el borde interior va {spread_io:.0f} °C más caliente "
                     "que el exterior; quizá sobra caída negativa (camber).",
                 )
             )
-        elif camber < CAMBER_MIN_C:
+        elif spread_io < CAMBER_MIN_C:
             reading = (
-                f"el borde exterior va {-camber:.0f} °C más caliente que el interior"
-                if camber < 0
+                f"el borde exterior va {-spread_io:.0f} °C más caliente que el interior"
+                if spread_io < 0
                 else "los bordes interior y exterior van casi igual"
             )
             hints.append(
