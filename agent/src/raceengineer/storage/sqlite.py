@@ -87,6 +87,10 @@ class SqliteSessionRepository:
     def close(self) -> None:
         self._conn.close()
 
+    def checkpoint(self) -> None:
+        """Fold the write-ahead log into the main file (before copying the file)."""
+        self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
     def __enter__(self) -> "SqliteSessionRepository":
         return self
 
