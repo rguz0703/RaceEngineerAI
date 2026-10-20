@@ -174,3 +174,25 @@ def test_tracks(db: Path) -> None:
 
 def test_tracks_without_database(tmp_path: Path) -> None:
     assert _client(tmp_path / "none.sqlite").get("/api/tracks").json() == []
+
+
+def test_lap_highlights(db: Path) -> None:
+    client = _client(db)
+    body = client.get("/api/sessions/1/laps/2/highlights").json()
+    assert body["lap"]["number"] == 2
+    assert body["moments"][0]["kind"] == "top_speed"
+    assert body["vs_best"] is not None
+    gap = body["vs_best"]
+    assert gap["clean"] is True
+    assert gap["best_segment"]["delta_s"] <= gap["worst_segment"]["delta_s"]
+    # Unfinished lap: highlights, but no gap to a best lap.
+    assert client.get("/api/sessions/1/laps/3/highlights").json()["vs_best"] is None
+    assert client.get("/api/sessions/1/laps/9/highlights").status_code == 404
+
+
+def test_lap_highlights_without_other_complete_laps(tmp_path: Path) -> None:
+    path = tmp_path / "one.sqlite"
+    with SqliteSessionRepository(path) as repository:
+        Recorder(FakeSource(laps=2), repository).record()
+    body = _client(path).get("/api/sessions/1/laps/1/highlights").json()
+    assert body["vs_best"] is None

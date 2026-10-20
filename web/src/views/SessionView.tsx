@@ -38,6 +38,7 @@ function LapsTable({ sessionId, laps, best }: { sessionId: number; laps: Lap[]; 
   const comparedAgainst = refLap ?? best;
   return (
     <>
+      <p className="muted small">Toca un tiempo para ver la ficha de esa vuelta, o › para compararla.</p>
       <div className="toolbar">
         <label>
           Comparar contra{" "}
@@ -72,7 +73,13 @@ function LapsTable({ sessionId, laps, best }: { sessionId: number; laps: Lap[]; 
                 </td>
                 <td className="num">
                   {!lap.official && lap.time_ms !== null && <span title="Tiempo estimado">≈</span>}
-                  {lapTime(lap.time_ms)}
+                  <a
+                    className="lap-link"
+                    href={href({ page: "lap", session: sessionId, lap: lap.number })}
+                    title="Ver la ficha de esta vuelta"
+                  >
+                    {lapTime(lap.time_ms)}
+                  </a>
                 </td>
                 <td className="wrap">
                   {lapKind(lap)}

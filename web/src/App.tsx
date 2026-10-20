@@ -4,6 +4,7 @@ import { useRoute } from "./route";
 import { useRecording } from "./useRecording";
 import { CompareView } from "./views/CompareView";
 import { HomeView } from "./views/HomeView";
+import { LapView } from "./views/LapView";
 import { LiveView } from "./views/LiveView";
 import { PickView } from "./views/PickView";
 import { SessionsView } from "./views/SessionsView";
@@ -33,6 +34,7 @@ export function App() {
         {route.page === "sessions" && <SessionsView version={version} />}
         {route.page === "session" && <SessionView id={route.id} />}
         {route.page === "pick" && <PickView />}
+        {route.page === "lap" && <LapView key={`${route.session}/${route.lap}`} session={route.session} lap={route.lap} />}
         {route.page === "compare" && <CompareView key={JSON.stringify(route)} {...route} />}
       </main>
     </>

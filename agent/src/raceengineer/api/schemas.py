@@ -194,3 +194,43 @@ class TrackOut(BaseModel):
     last_driven: datetime
     outline_x: list[float]
     outline_z: list[float]
+
+
+class MomentOut(BaseModel):
+    kind: str
+    title: str
+    value: str
+    detail: str
+    distance_m: float
+    pos_x: float
+    pos_z: float
+    warn: bool
+
+
+class LapStatsOut(BaseModel):
+    full_throttle_pct: float
+    braking_pct: float
+    coasting_pct: float
+    avg_speed_kmh: float
+    max_rpm: float
+    gear_changes: int
+
+
+class ReferenceGapOut(BaseModel):
+    reference: LapRef
+    clean: bool
+    total_s: float
+    """Positive: this lap is slower than the reference."""
+    best_segment: SegmentOut
+    worst_segment: SegmentOut
+
+
+class LapHighlightsOut(BaseModel):
+    session: SessionOut
+    lap: LapOut
+    moments: list[MomentOut]
+    stats: LapStatsOut
+    path_x: list[float]
+    path_z: list[float]
+    vs_best: ReferenceGapOut | None
+    """Against your best lap on this track (another lap), when there is one."""

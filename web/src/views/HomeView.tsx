@@ -53,7 +53,7 @@ export function HomeView({ control, version }: { control: RecordingControl; vers
                       const change = times.length >= 2 ? (times[times.length - 1] - times[0]) / 1000 : null;
                       return (
                         <li key={`${b.sim}/${b.track}/${b.track_config}/${b.car}`}>
-                          <a className="card best-card" href={href({ page: "session", id: b.session_id })}>
+                          <a className="card best-card" href={href({ page: "lap", session: b.session_id, lap: b.lap })}>
                             <span className="card-top">
                               <span className="sim">{simName(b.sim)}</span>
                               <span className="muted small">{dateTime(b.driven_at)}</span>

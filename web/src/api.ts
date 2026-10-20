@@ -138,6 +138,40 @@ export interface Track {
   outline_z: number[];
 }
 
+export interface Moment {
+  kind: "top_speed" | "braking" | "corner" | "off_track" | "lockup" | "wheelspin" | string;
+  title: string;
+  value: string;
+  detail: string;
+  distance_m: number;
+  pos_x: number;
+  pos_z: number;
+  warn: boolean;
+}
+
+export interface LapHighlights {
+  session: Session;
+  lap: Lap;
+  moments: Moment[];
+  stats: {
+    full_throttle_pct: number;
+    braking_pct: number;
+    coasting_pct: number;
+    avg_speed_kmh: number;
+    max_rpm: number;
+    gear_changes: number;
+  };
+  path_x: number[];
+  path_z: number[];
+  vs_best: {
+    reference: LapRef;
+    clean: boolean;
+    total_s: number;
+    best_segment: Segment;
+    worst_segment: Segment;
+  } | null;
+}
+
 export interface Game {
   state: "unavailable" | "closed" | "off" | "live" | "pause" | "replay" | string;
   track: string;
@@ -180,6 +214,8 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   overview: () => get<Overview>("/api/overview"),
   tracks: () => get<Track[]>("/api/tracks"),
+  highlights: (sessionId: number, lap: number) =>
+    get<LapHighlights>(`/api/sessions/${sessionId}/laps/${lap}/highlights`),
   recording: () => get<Recording>("/api/recording"),
   startRecording: () => get<Recording>("/api/recording/start", { method: "POST" }),
   stopRecording: () => get<Recording>("/api/recording/stop", { method: "POST" }),
