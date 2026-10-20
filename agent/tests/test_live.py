@@ -157,3 +157,48 @@ def test_websocket_without_recorder(tmp_path: Path) -> None:
     client = TestClient(create_app(tmp_path / "s.sqlite", static_dir=None))
     with client.websocket_connect("/ws/live") as ws:
         assert ws.receive_json()["state"] == "idle"
+
+
+def test_events_for_off_track_lockup_wheelspin_and_best_lap() -> None:
+    samples = _laps(laps=3, seed=4)
+    lap0_end = next(i for i, s in enumerate(samples) if s.lap_number == 1)
+    edited = list(samples)
+    # Off track for a stretch, twice close together: one event per episode.
+    for i in range(100, 130):
+        edited[i] = replace(edited[i], tyres_out=4)
+    for i in range(200, 215):
+        edited[i] = replace(edited[i], brake=1.0, throttle=0.0, slip_ratio_fl=-0.6)
+    for i in range(300, 320):
+        edited[i] = replace(edited[i], throttle=1.0, slip_ratio_rl=0.4)
+    for i in range(400, 401):
+        edited[i] = replace(edited[i], tyres_out=3)  # brief: still counts as off track
+    tracker = LiveTracker(TRACK)
+    frame = None
+    for s in edited:
+        frame = tracker.update(s)
+    assert frame is not None
+    kinds = [e.kind for e in frame.events]
+    assert kinds.count("off_track") == 2
+    assert "lockup" in kinds and "wheelspin" in kinds
+    assert any("delantera izquierda" in e.text for e in frame.events)
+    ids = [e.id for e in frame.events]
+    assert ids == sorted(ids)
+    assert edited[lap0_end].lap_number == 1
+
+
+def test_new_best_lap_event_and_event_cap() -> None:
+    samples = _laps(laps=3, seed=5)
+    first_time = next(s.last_lap_ms for s in samples if s.lap_number == 1)
+    # Make lap 2 exactly half a second faster than lap 1.
+    faster = [replace(s, last_lap_ms=first_time - 500) if s.lap_number == 2 else s for s in samples]
+    tracker = LiveTracker(TRACK)
+    for s in faster:
+        frame = tracker.update(s)
+
+    [best] = [e for e in frame.events if e.kind == "best_lap"]
+    assert best.level == "good" and best.lap == 2
+    assert "0.500 s más rápida" in best.text
+
+    for _ in range(30):
+        tracker._add("off_track", "warn", "x", 1, 0.0)
+    assert len(tracker.update(_laps()[0]).events) == 20
