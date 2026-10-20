@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import Lap, LapSignals, SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -281,6 +281,9 @@ _MIGRATIONS = [
         tyre_temp_inner_rl = tyre_temp_outer_rl, tyre_temp_outer_rl = tyre_temp_inner_rl
     WHERE session_id IN (SELECT id FROM sessions WHERE sim = 'assetto_corsa');
     """,
+    # v7: lap rules changed (mid-update read at the start, minimum lap time);
+    # forget the stored lap indexes so they are rebuilt on next use.
+    "UPDATE sessions SET laps_sample_count = NULL;",
 ]
 
 

@@ -23,6 +23,9 @@ class LapSignal(Protocol):
     def tyres_out(self) -> int: ...
 
 
+MIN_LAP_MS = 10_000
+"""No real lap is this short: a shorter "finished" lap is a glitch at the line."""
+
 START_TOLERANCE_MS = 1000
 """A lap whose first sample shows at most this much on the lap timer was recorded
 from the line. Larger means the recording started mid-lap (or the samples near the
@@ -54,6 +57,8 @@ def segment_laps(samples: Sequence[LapSignal]) -> list[Lap]:
             official = time_ms is not None
             if time_ms is None:
                 time_ms = _estimated_time(last, samples[end])
+            if time_ms < MIN_LAP_MS:
+                time_ms, official, crossed_line = None, False, False
         laps.append(
             Lap(
                 number=numbers[start] + 1,
@@ -81,6 +86,12 @@ def _lap_numbers(samples: Sequence[LapSignal]) -> list[int]:
     """
     numbers = [s.lap_number for s in samples]
     n = len(samples)
+    # A recording can also start on such a read, with no earlier sample to compare.
+    j = 0
+    while j < n and samples[j].lap_number == samples[0].lap_number and _just_started(samples[j]):
+        j += 1
+    if 0 < j < n and samples[j].lap_number == samples[0].lap_number + 1:
+        numbers[:j] = [samples[0].lap_number + 1] * j
     for i in range(1, n):
         prev, cur = samples[i - 1], samples[i]
         if cur.lap_number == prev.lap_number and _timer_reset(prev, cur):

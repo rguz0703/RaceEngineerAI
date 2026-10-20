@@ -12,7 +12,12 @@ from raceengineer.analysis.car import WHEEL_NAMES, WHEELS
 from raceengineer.analysis.compare import lap_trace
 from raceengineer.analysis.diagnosis import LOCK_RATIO, MIN_EVENT_S, SPIN_RATIO
 from raceengineer.analysis.lap_index import load_lap, session_laps
-from raceengineer.analysis.laps import OFF_TRACK_TYRES, START_TOLERANCE_MS, default_reference
+from raceengineer.analysis.laps import (
+    MIN_LAP_MS,
+    OFF_TRACK_TYRES,
+    START_TOLERANCE_MS,
+    default_reference,
+)
 from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
 from raceengineer.domain.ports import SessionRepository
 
@@ -218,7 +223,7 @@ class LiveTracker:
         samples = self._lap_samples
         self._lap_samples = []
         time_ms = first_of_next.last_lap_ms
-        if time_ms <= 0:
+        if time_ms < MIN_LAP_MS:
             return
         previous_best = self._best_ms
         if self._best_ms == 0 or time_ms < self._best_ms:

@@ -141,3 +141,21 @@ def test_v6_fixes_left_tyre_edges_of_ac_sessions_only(tmp_path: Path) -> None:
     assert (fixed.tyre_temp_inner_fl, fixed.tyre_temp_outer_fl) == (80.0, 60.0)
     assert fixed.tyre_temp_inner_fr == 70.0  # right wheels unchanged
     assert (untouched.tyre_temp_inner_fl, untouched.tyre_temp_outer_fl) == (60.0, 80.0)
+
+
+def test_v7_rebuilds_lap_indexes(tmp_path: Path) -> None:
+    from raceengineer.analysis.lap_index import session_laps
+
+    db = tmp_path / "v6.sqlite"
+    with SqliteSessionRepository(db) as repo:
+        sid = repo.create_session(INFO, START)
+        repo.append_samples(sid, list(FakeSource(laps=2).samples()))
+        session_laps(repo, sid)
+        assert repo.load_laps(sid) is not None
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA user_version = 6")
+    conn.commit()
+    conn.close()
+
+    with SqliteSessionRepository(db) as repo:
+        assert repo.load_laps(sid) is None
