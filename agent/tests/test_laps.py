@@ -169,3 +169,26 @@ def test_default_reference_prefers_clean_laps() -> None:
     # No clean lap left: fall back to the fastest finished one, flagged as not clean.
     assert default_reference([clean, dirty_fast], exclude=clean) == (dirty_fast, False)
     assert default_reference([dirty_fast, unfinished], exclude=dirty_fast) == (None, False)
+
+
+def test_recording_that_starts_on_a_mid_update_read() -> None:
+    # Seen when recording started right at the line: timer already reset,
+    # counter still on the previous lap, and no earlier sample to compare.
+    samples = [
+        _s(0.0, 6, 9, last_lap_ms=108_852),
+        _s(0.0, 6, 9, last_lap_ms=108_852),
+        _s(0.016, 7, 21, last_lap_ms=108_852),
+        _s(60.0, 7, 60_000, last_lap_ms=108_852),
+    ]
+
+    [lap] = segment_laps(samples)
+
+    assert (lap.number, lap.start, lap.end) == (8, 0, 4)
+
+
+def test_impossibly_short_laps_are_not_finished() -> None:
+    samples = [_s(0.0, 0, 0), _s(3.0, 0, 3_000), _s(3.1, 1, 50, last_lap_ms=3_040)]
+
+    [short, _] = segment_laps(samples)
+
+    assert (short.time_ms, short.complete) == (None, False)
