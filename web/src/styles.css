@@ -1603,3 +1603,72 @@ select {
     font-size: 1.15rem;
   }
 }
+
+/* --- Live alerts --- */
+.alert-banner {
+  position: sticky;
+  top: 60px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-weight: 700;
+  font-size: 1.1rem;
+  animation: alert-in 160ms ease-out;
+}
+
+.alert-banner.warn {
+  background: var(--warn);
+  color: #1a1200;
+}
+
+.alert-banner.good {
+  background: var(--gain);
+  color: #04140b;
+}
+
+.alert-icon {
+  font-size: 1.3rem;
+}
+
+@keyframes alert-in {
+  from {
+    transform: translateY(-6px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-banner {
+    animation: none;
+  }
+}
+
+.live-events {
+  padding: 10px 12px;
+}
+
+.live-events ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.live-events li {
+  padding: 4px 8px;
+  border-left: 3px solid var(--warn);
+  background: var(--surface-2);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.live-events li.good {
+  border-left-color: var(--gain);
+}

@@ -8,9 +8,11 @@ from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from raceengineer.analysis.car import WHEEL_NAMES, WHEELS
 from raceengineer.analysis.compare import lap_trace
+from raceengineer.analysis.diagnosis import LOCK_RATIO, MIN_EVENT_S, SPIN_RATIO
 from raceengineer.analysis.lap_index import load_lap, session_laps
-from raceengineer.analysis.laps import OFF_TRACK_TYRES, START_TOLERANCE_MS, best_clean_lap
+from raceengineer.analysis.laps import OFF_TRACK_TYRES, START_TOLERANCE_MS, default_reference
 from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
 from raceengineer.domain.ports import SessionRepository
 
@@ -61,6 +63,26 @@ class ReferenceLap:
 
 
 @dataclass(frozen=True, slots=True)
+class LiveEvent:
+    """Something worth flagging the moment it happens."""
+
+    id: int
+    """Increasing, so clients can tell new events from ones already shown."""
+    kind: str
+    """off_track, lockup, wheelspin or best_lap."""
+    level: str
+    """"warn" (yellow) or "good" (green)."""
+    text: str
+    lap: int
+    distance_m: float
+
+
+MAX_EVENTS = 20
+REARM_S = 0.5
+"""A condition must be absent this long before the same kind can fire again."""
+
+
+@dataclass(frozen=True, slots=True)
 class LiveFrame:
     lap: int
     lap_time_ms: int
@@ -80,6 +102,34 @@ class LiveFrame:
     in_pit: bool
     reference_ms: int | None
     reference_label: str
+    events: list[LiveEvent]
+    """Most recent last, at most MAX_EVENTS."""
+
+
+class _Episode:
+    """Fires once when a condition has held for ``min_s``; re-arms after it clears."""
+
+    def __init__(self, min_s: float) -> None:
+        self._min_s = min_s
+        self._since: float | None = None
+        self._cleared_at: float | None = None
+        self._fired = False
+
+    def update(self, active: bool, t: float) -> bool:
+        if active:
+            self._cleared_at = None
+            if self._since is None:
+                self._since = t
+            if not self._fired and t - self._since >= self._min_s:
+                self._fired = True
+                return True
+            return False
+        self._since = None
+        if self._fired:
+            self._cleared_at = self._cleared_at if self._cleared_at is not None else t
+            if t - self._cleared_at >= REARM_S:
+                self._fired = False
+        return False
 
 
 class LiveTracker:
@@ -91,6 +141,11 @@ class LiveTracker:
         self._lap_samples: list[TelemetrySample] = []
         self._best_ms = 0
         self._frame: LiveFrame | None = None
+        self._events: list[LiveEvent] = []
+        self._next_event = 1
+        self._off_track = _Episode(0.0)
+        self._lockups = {w: _Episode(MIN_EVENT_S) for w in WHEELS}
+        self._spin = _Episode(1.5 * MIN_EVENT_S)
 
     @property
     def frame(self) -> LiveFrame | None:
@@ -103,6 +158,7 @@ class LiveTracker:
         self._lap_samples.append(sample)
 
         distance = self._distance(sample)
+        self._detect(sample, distance or 0.0)
         delta = None
         if self.reference is not None and distance is not None and not sample.in_pit:
             delta = sample.lap_time_ms / 1000 - self.reference.time_at(distance)
@@ -124,8 +180,30 @@ class LiveTracker:
             in_pit=sample.in_pit,
             reference_ms=self.reference.time_ms if self.reference else None,
             reference_label=self.reference.label if self.reference else "",
+            events=list(self._events),
         )
         return self._frame
+
+    def _detect(self, sample: TelemetrySample, distance: float) -> None:
+        lap = sample.lap_number + 1
+        if self._off_track.update(sample.tyres_out >= OFF_TRACK_TYRES, sample.t):
+            self._add(
+                "off_track", "warn", f"Fuera de pista ({sample.tyres_out} ruedas)", lap, distance
+            )
+        for wheel, episode in self._lockups.items():
+            slip = float(getattr(sample, f"slip_ratio_{wheel}"))
+            if episode.update(sample.brake > 0.2 and slip < LOCK_RATIO, sample.t):
+                self._add("lockup", "warn", f"Bloqueo: {WHEEL_NAMES[wheel]}", lap, distance)
+        spinning = sample.throttle > 0.5 and any(
+            float(getattr(sample, f"slip_ratio_{w}")) > SPIN_RATIO for w in WHEELS
+        )
+        if self._spin.update(spinning, sample.t):
+            self._add("wheelspin", "warn", "Patinaste al acelerar", lap, distance)
+
+    def _add(self, kind: str, level: str, text: str, lap: int, distance: float) -> None:
+        self._events.append(LiveEvent(self._next_event, kind, level, text, lap, round(distance)))
+        self._next_event += 1
+        del self._events[:-MAX_EVENTS]
 
     def _distance(self, sample: TelemetrySample) -> float | None:
         if self._length <= 0:
@@ -142,8 +220,18 @@ class LiveTracker:
         time_ms = first_of_next.last_lap_ms
         if time_ms <= 0:
             return
+        previous_best = self._best_ms
         if self._best_ms == 0 or time_ms < self._best_ms:
             self._best_ms = time_ms
+            if previous_best:
+                gain = (previous_best - time_ms) / 1000
+                self._add(
+                    "best_lap",
+                    "good",
+                    f"¡Nueva mejor vuelta! {_lap_text(time_ms)} ({gain:.3f} s más rápida)",
+                    samples[0].lap_number + 1,
+                    0.0,
+                )
         clean = (
             samples[0].lap_time_ms <= START_TOLERANCE_MS
             and not any(s.in_pit for s in samples)
@@ -159,9 +247,17 @@ class LiveTracker:
             )
 
 
+def _lap_text(ms: int) -> str:
+    minutes, rest = divmod(ms, 60_000)
+    return f"{minutes}:{rest / 1000:06.3f}"
+
+
 def best_reference(repository: SessionRepository, info: SessionInfo) -> ReferenceLap | None:
-    """Fastest clean lap recorded before with the same sim, track, layout and car."""
-    best: tuple[int, Lap] | None = None
+    """Fastest lap recorded before with the same sim, track, layout and car.
+
+    Clean laps first; if there are none, the fastest finished lap (its label says so).
+    """
+    best: tuple[int, Lap, bool] | None = None
     for record in repository.list_sessions():
         other = record.info
         same = (other.sim, other.track, other.track_config, other.car) == (
@@ -172,15 +268,16 @@ def best_reference(repository: SessionRepository, info: SessionInfo) -> Referenc
         )
         if not same:
             continue
-        lap = best_clean_lap(session_laps(repository, record.id))
+        lap, clean = default_reference(session_laps(repository, record.id))
         if lap is None or lap.time_ms is None:
             continue
-        if best is None or lap.time_ms < (best[1].time_ms or 0):
-            best = (record.id, lap)
+        if best is None or (clean, -lap.time_ms) > (best[2], -(best[1].time_ms or 0)):
+            best = (record.id, lap, clean)
     if best is None:
         return None
-    session_id, lap = best
+    session_id, lap, clean = best
     samples, local = load_lap(repository, session_id, lap)
-    return ReferenceLap.from_lap(
-        samples, local, info.track_length_m, f"sesión {session_id}, vuelta {lap.number}"
+    label = f"sesión {session_id}, vuelta {lap.number}" + (
+        "" if clean else " (con salida de pista)"
     )
+    return ReferenceLap.from_lap(samples, local, info.track_length_m, label)

@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
+export interface LiveEvent {
+  id: number;
+  kind: "off_track" | "lockup" | "wheelspin" | "best_lap" | string;
+  level: "warn" | "good";
+  text: string;
+  lap: number;
+  distance_m: number;
+}
+
 export interface LiveFrame {
   lap: number;
   lap_time_ms: number;
@@ -18,6 +27,7 @@ export interface LiveFrame {
   in_pit: boolean;
   reference_ms: number | null;
   reference_label: string;
+  events: LiveEvent[];
 }
 
 export interface LiveReference {

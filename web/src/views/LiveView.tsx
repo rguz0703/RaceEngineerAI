@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ControlCenter } from "../components/ControlCenter";
 import { lapTime, signed } from "../format";
-import { useLive, type LiveFrame, type LiveReference } from "../useLive";
+import { useLive, type LiveEvent, type LiveFrame, type LiveReference } from "../useLive";
 import type { RecordingControl } from "../useRecording";
 
 /** What the engineer's screen shows while driving: delta first, then the car. */
@@ -61,6 +61,7 @@ function LivePanel({
   const paused = game === "pause" || game === "replay";
   return (
     <div className="live">
+      <AlertBanner events={frame.events} />
       <section className={`panel live-delta ${tone}`}>
         <span className="live-best">
           <span className="label">Tu mejor vuelta</span>
@@ -123,9 +124,50 @@ function LivePanel({
         </div>
       </section>
 
+      {frame.events.length > 0 && (
+        <section className="panel live-events">
+          <span className="label">Avisos de esta sesión</span>
+          <ul>
+            {[...frame.events].reverse().map((e) => (
+              <li key={e.id} className={e.level}>
+                <span className="mono muted">V{e.lap}</span> {e.text}
+                {e.kind !== "best_lap" && <span className="muted small"> · {Math.round(e.distance_m)} m</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <button className="rec-button stop" onClick={onStop} disabled={busy}>
         ■ Detener
       </button>
+    </div>
+  );
+}
+
+const ALERT_MS = 4000;
+
+/** Shows each new event for a few seconds: yellow for incidents, green for a new best lap. */
+function AlertBanner({ events }: { events: LiveEvent[] }) {
+  const latest = events[events.length - 1];
+  const [shown, setShown] = useState<LiveEvent | null>(null);
+  const [seen, setSeen] = useState<number>(() => latest?.id ?? 0);
+
+  useEffect(() => {
+    if (!latest || latest.id <= seen) return;
+    setSeen(latest.id);
+    setShown(latest);
+    const timer = window.setTimeout(() => setShown(null), ALERT_MS);
+    return () => window.clearTimeout(timer);
+  }, [latest, seen]);
+
+  if (!shown) return null;
+  return (
+    <div className={`alert-banner ${shown.level}`} role="alert">
+      <span className="alert-icon" aria-hidden="true">
+        {shown.level === "good" ? "★" : "⚠"}
+      </span>
+      {shown.text}
     </div>
   );
 }
