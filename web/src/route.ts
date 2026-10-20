@@ -6,6 +6,7 @@ export type Route =
   | { page: "live" }
   | { page: "sessions" }
   | { page: "pick" }
+  | { page: "lap"; session: number; lap: number }
   | { page: "session"; id: number }
   | { page: "compare"; session: number; lap: number; refSession?: number; refLap?: number };
 
@@ -20,6 +21,11 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "live") return { page: "live" };
   if (parts[0] === "sessions" && parts[1]) return { page: "session", id: Number(parts[1]) };
   if (parts[0] === "sessions") return { page: "sessions" };
+  if (parts[0] === "lap") {
+    const session = num("session");
+    const lap = num("lap");
+    if (session !== undefined && lap !== undefined) return { page: "lap", session, lap };
+  }
   if (parts[0] === "compare") {
     const session = num("session");
     const lap = num("lap");
@@ -41,6 +47,8 @@ export function href(route: Route): string {
       return "#/sessions";
     case "pick":
       return "#/compare";
+    case "lap":
+      return `#/lap?session=${route.session}&lap=${route.lap}`;
     case "session":
       return `#/sessions/${route.id}`;
     case "compare": {

@@ -11,7 +11,7 @@ const ICONS = {
 const TABS: { route: Route; label: string; icon: keyof typeof ICONS; pages: Route["page"][] }[] = [
   { route: { page: "home" }, label: "Inicio", icon: "home", pages: ["home"] },
   { route: { page: "live" }, label: "En vivo", icon: "live", pages: ["live"] },
-  { route: { page: "sessions" }, label: "Sesiones", icon: "sessions", pages: ["sessions", "session"] },
+  { route: { page: "sessions" }, label: "Sesiones", icon: "sessions", pages: ["sessions", "session", "lap"] },
   { route: { page: "pick" }, label: "Comparar", icon: "compare", pages: ["pick", "compare"] },
 ];
 

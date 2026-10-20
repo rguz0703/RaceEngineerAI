@@ -13,8 +13,9 @@ from pydantic import BaseModel
 from raceengineer.adapters.ac_shared_memory import GameProbe
 from raceengineer.analysis import lap_index
 from raceengineer.analysis.car import CarSummary, summarize_car
-from raceengineer.analysis.compare import Channels, compare_laps, lap_trace, summarize
+from raceengineer.analysis.compare import Channels, LapTrace, compare_laps, lap_trace, summarize
 from raceengineer.analysis.diagnosis import diagnose, lap_data
+from raceengineer.analysis.highlights import lap_highlights
 from raceengineer.analysis.laps import best_clean_lap, default_reference
 from raceengineer.analysis.overview import overview
 from raceengineer.analysis.tracks import summarize_tracks
@@ -24,12 +25,16 @@ from raceengineer.api.schemas import (
     ChannelsOut,
     ComparisonOut,
     GameOut,
+    LapHighlightsOut,
     LapOut,
     LapRef,
+    LapStatsOut,
+    MomentOut,
     NoteOut,
     OverviewOut,
     ProgressOut,
     RecordingOut,
+    ReferenceGapOut,
     SegmentOut,
     SessionLapsOut,
     SessionOut,
@@ -196,6 +201,71 @@ def create_app(
             session=_session_out(session.record, session.laps),
             laps=[_lap_out(lap) for lap in session.laps],
             best_clean_lap=best.number if best else None,
+        )
+
+    @app.get("/api/sessions/{session_id}/laps/{number}/highlights")
+    def highlights(session_id: int, number: int) -> LapHighlightsOut:
+        session = load(session_id)
+        lap = next((lap for lap in session.laps if lap.number == number), None)
+        if lap is None:
+            raise HTTPException(404, f"La vuelta {number} no existe en la sesión {session_id}")
+        samples, local = load_lap(session, lap)
+        info = session.record.info
+        trace = lap_trace(samples, local, info.track_length_m)
+        try:
+            found = lap_highlights(samples, trace.length_m)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return LapHighlightsOut(
+            session=_session_out(session.record, session.laps),
+            lap=_lap_out(lap),
+            moments=[_validated(MomentOut, m) for m in found.moments],
+            stats=_validated(LapStatsOut, found.stats),
+            path_x=found.path_x,
+            path_z=found.path_z,
+            vs_best=vs_best(session, lap, trace) if lap.time_ms is not None else None,
+        )
+
+    def vs_best(session: _Session, lap: Lap, trace: LapTrace) -> ReferenceGapOut | None:
+        """Gap to the best other lap on the same sim/track/layout (clean laps first)."""
+        info = session.record.info
+        key = (info.sim, info.track, info.track_config)
+        candidates: list[tuple[bool, int, int, Lap]] = []
+        for record, laps in all_sessions():
+            other = record.info
+            if (other.sim, other.track, other.track_config) != key:
+                continue
+            for candidate in laps:
+                # Only laps recorded line to line, so the total gap means something.
+                if candidate.time_ms is None or not candidate.complete:
+                    continue
+                if record.id == session.record.id and candidate.number == lap.number:
+                    continue
+                clean = candidate.complete and not (
+                    candidate.off_track or candidate.out_lap or candidate.in_lap
+                )
+                candidates.append((not clean, candidate.time_ms, record.id, candidate))
+        if not candidates:
+            return None
+        dirty, _, ref_session_id, ref_lap = min(candidates, key=lambda c: (c[0], c[1]))
+        with SqliteSessionRepository(db_path) as repository:
+            ref_samples, ref_local = lap_index.load_lap(repository, ref_session_id, ref_lap)
+            ref_record = repository.get_session(ref_session_id)
+        assert ref_record is not None
+        ref_trace = lap_trace(ref_samples, ref_local, ref_record.info.track_length_m)
+        try:
+            comparison = compare_laps(trace, ref_trace)
+        except ValueError:
+            return None
+        segments = summarize(comparison)
+        return ReferenceGapOut(
+            reference=LapRef(
+                session_id=ref_session_id, lap=ref_lap.number, time_ms=ref_lap.time_ms
+            ),
+            clean=not dirty,
+            total_s=comparison.delta_s[-1],
+            best_segment=_validated(SegmentOut, min(segments, key=lambda s: s.delta_s)),
+            worst_segment=_validated(SegmentOut, max(segments, key=lambda s: s.delta_s)),
         )
 
     @app.get("/api/compare")
