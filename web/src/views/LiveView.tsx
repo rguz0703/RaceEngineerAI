@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { ControlCenter } from "../components/ControlCenter";
+import { RadioPanel } from "../components/RadioPanel";
 import { lapTime, signed } from "../format";
 import { useLive, type LiveEvent, type LiveFrame, type LiveReference } from "../useLive";
+import { useRadio, type Radio } from "../useRadio";
 import type { RecordingControl } from "../useRecording";
+
+const NO_CALLS: never[] = [];
 
 /** What the engineer's screen shows while driving: delta first, then the car. */
 export function LiveView({ control }: { control: RecordingControl }) {
   const live = useLive();
   const recording = live.state === "recording" || live.state === "stopping";
   const frame = live.frame;
+  const calls = frame?.radio ?? NO_CALLS;
+  const radio = useRadio(calls);
   return (
     <>
       <div className="live-head">
@@ -31,9 +37,19 @@ export function LiveView({ control }: { control: RecordingControl }) {
               ? "Grabando: esperando las primeras lecturas…"
               : "Pulsa Grabar con el coche en pista y aquí verás la telemetría en directo."}
           </p>
+          <RadioPanel radio={radio} calls={calls} />
         </>
       ) : (
-        <LivePanel frame={frame} reference={live.reference} trace={live.trace} maxRpm={live.maxRpm} game={live.game} onStop={() => void control.stop()} busy={control.busy} />
+        <LivePanel
+          frame={frame}
+          reference={live.reference}
+          trace={live.trace}
+          maxRpm={live.maxRpm}
+          game={live.game}
+          onStop={() => void control.stop()}
+          busy={control.busy}
+          radio={radio}
+        />
       )}
     </>
   );
@@ -47,6 +63,7 @@ function LivePanel({
   game,
   onStop,
   busy,
+  radio,
 }: {
   frame: LiveFrame;
   reference: LiveReference | null;
@@ -55,6 +72,7 @@ function LivePanel({
   game: string;
   onStop: () => void;
   busy: boolean;
+  radio: Radio;
 }) {
   const delta = frame.delta_s;
   const tone = delta === null ? "even" : delta > 0.02 ? "lose" : delta < -0.02 ? "gain" : "even";
@@ -123,6 +141,8 @@ function LivePanel({
           </div>
         </div>
       </section>
+
+      <RadioPanel radio={radio} calls={frame.radio} />
 
       {frame.events.length > 0 && (
         <section className="panel live-events">

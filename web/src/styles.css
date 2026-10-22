@@ -1875,3 +1875,137 @@ select {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* --- Engineer radio --- */
+.radio {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio.on {
+  border-color: color-mix(in srgb, var(--series-target) 50%, var(--border));
+}
+
+.radio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.radio-head .chip {
+  margin-left: 0;
+}
+
+.radio-toggle {
+  font: inherit;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.radio-toggle.on {
+  border-color: var(--series-target);
+  color: var(--series-target);
+  background: color-mix(in srgb, var(--series-target) 12%, transparent);
+}
+
+.radio p {
+  margin: 0;
+}
+
+.radio-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.radio-settings fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radio-option {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+}
+
+.radio-option input {
+  margin-top: 3px;
+}
+
+.radio-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.radio-field select {
+  font: inherit;
+  font-size: 0.9rem;
+  max-width: 100%;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.radio-settings .button {
+  align-self: flex-start;
+  color: var(--text);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.radio-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.radio-log li {
+  padding: 4px 8px;
+  border-left: 3px solid var(--series-target);
+  background: var(--surface-2);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.radio-log li.best_lap {
+  border-left-color: var(--gain);
+}
+
+.radio-log li.incident {
+  border-left-color: var(--warn);
+}
+
+.radio-log li.tip {
+  border-left-color: var(--series-delta);
+}

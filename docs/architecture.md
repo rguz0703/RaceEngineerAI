@@ -107,6 +107,8 @@ Electron) mostrando la misma interfaz web; publicación en Steam.
 | F6 | Curvas, frenadas, coasting, consistencia | Casos sintéticos + vueltas reales | No |
 | F7 | Recomendaciones por reglas | Test por regla | No |
 | F8 | Coach en vivo (overlay, luego voz) | Latencia medida | Sí |
+
+F7–F8 (2026-10-21): "radio del ingeniero" con reglas propias en `capture/engineer.py` (sectores en tercios, tiempo de vuelta contra la referencia, la ventana de 250 m donde más se perdió con su causa: frenada antes, menor velocidad mínima, salida más lenta o acelerador tarde; incidentes espaciados 3 s). El servidor genera el texto y la frase hablada; el navegador la lee con `speechSynthesis` (sin dependencias, funciona en la PC y en el celular). Sin IA externa por ahora, por decisión del usuario.
 | F9 | Más juegos (un adaptador por juego) | Fixtures por juego | Sí |
 | F10 | Instalador, auto-actualización, Steam | Instalación limpia en Windows | Sí |
 
