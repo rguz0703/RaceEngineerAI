@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from raceengineer.analysis.car import WHEEL_NAMES, WHEELS
-from raceengineer.analysis.compare import lap_trace
+from raceengineer.analysis.compare import LapTrace, compare_laps, lap_trace
 from raceengineer.analysis.diagnosis import LOCK_RATIO, MIN_EVENT_S, SPIN_RATIO
 from raceengineer.analysis.lap_index import load_lap, session_laps
 from raceengineer.analysis.laps import (
@@ -17,6 +17,14 @@ from raceengineer.analysis.laps import (
     OFF_TRACK_TYRES,
     START_TOLERANCE_MS,
     default_reference,
+)
+from raceengineer.capture.engineer import (
+    RadioCall,
+    biggest_loss,
+    incident_speech,
+    lap_call,
+    sector_call,
+    tip_call,
 )
 from raceengineer.domain.models import Lap, SessionInfo, TelemetrySample
 from raceengineer.domain.ports import SessionRepository
@@ -36,6 +44,8 @@ class ReferenceLap:
     pos_z: list[float]
     label: str
     """Where it comes from, e.g. "sesión 3, vuelta 5" or "esta sesión, vuelta 4"."""
+    trace: LapTrace | None = None
+    """The full trace, used by the engineer to explain where time went."""
 
     @classmethod
     def from_lap(
@@ -50,6 +60,7 @@ class ReferenceLap:
             pos_x=trace.pos_x,
             pos_z=trace.pos_z,
             label=label,
+            trace=trace,
         )
 
     def time_at(self, distance_m: float) -> float:
@@ -83,6 +94,11 @@ class LiveEvent:
 
 
 MAX_EVENTS = 20
+SECTORS = 3
+WHOLE_LAP = 0.9
+"""Share of a lap's time that must have been recorded to judge it."""
+INCIDENT_GAP_S = 3.0
+"""The engineer leaves at least this long between incident calls."""
 REARM_S = 0.5
 """A condition must be absent this long before the same kind can fire again."""
 
@@ -109,6 +125,8 @@ class LiveFrame:
     reference_label: str
     events: list[LiveEvent]
     """Most recent last, at most MAX_EVENTS."""
+    radio: list[RadioCall]
+    """What the engineer said, most recent last, at most MAX_EVENTS."""
 
 
 class _Episode:
@@ -151,15 +169,23 @@ class LiveTracker:
         self._off_track = _Episode(0.0)
         self._lockups = {w: _Episode(MIN_EVENT_S) for w in WHEELS}
         self._spin = _Episode(1.5 * MIN_EVENT_S)
+        self._radio: list[RadioCall] = []
+        self._next_radio = 1
+        self._now = 0.0
+        self._last_incident: float | None = None
+        self._sector = 0
+        self._sector_start: float | None = None
 
     @property
     def frame(self) -> LiveFrame | None:
         return self._frame
 
     def update(self, sample: TelemetrySample) -> LiveFrame:
+        self._now = sample.t
         previous = self._lap_samples[-1] if self._lap_samples else None
         if previous is not None and sample.lap_number != previous.lap_number:
             self._finish_lap(sample)
+        starting = not self._lap_samples
         self._lap_samples.append(sample)
 
         distance = self._distance(sample)
@@ -167,6 +193,10 @@ class LiveTracker:
         delta = None
         if self.reference is not None and distance is not None and not sample.in_pit:
             delta = sample.lap_time_ms / 1000 - self.reference.time_at(distance)
+        if starting:
+            self._start_sectors(sample, distance, delta)
+        elif delta is not None and distance is not None:
+            self._sectors(sample, distance, delta)
         self._frame = LiveFrame(
             lap=sample.lap_number + 1,
             lap_time_ms=sample.lap_time_ms,
@@ -186,29 +216,87 @@ class LiveTracker:
             reference_ms=self.reference.time_ms if self.reference else None,
             reference_label=self.reference.label if self.reference else "",
             events=list(self._events),
+            radio=list(self._radio),
         )
         return self._frame
+
+    def _start_sectors(
+        self, sample: TelemetrySample, distance: float | None, delta: float | None
+    ) -> None:
+        """Sector calls only for laps started at the line with a reference to race."""
+        at_line = sample.lap_time_ms <= START_TOLERANCE_MS and not sample.in_pit
+        self._sector_start = delta if at_line and delta is not None else None
+        self._sector = 0
+        if self._sector_start is None and distance is not None and self._length > 0:
+            # Skip the sectors already behind us.
+            self._sector = min(SECTORS, int(distance / self._length * SECTORS) + 1)
+
+    def _sectors(self, sample: TelemetrySample, distance: float, delta: float) -> None:
+        while (
+            self._sector < SECTORS - 1 and distance >= self._length * (self._sector + 1) / SECTORS
+        ):
+            if self._sector_start is not None:
+                self._say(
+                    sector_call(
+                        self._next_radio,
+                        sample.lap_number + 1,
+                        self._sector,
+                        delta - self._sector_start,
+                    )
+                )
+            self._sector_start = delta
+            self._sector += 1
+
+    def _say(self, call: RadioCall) -> None:
+        self._radio.append(call)
+        self._next_radio = call.id + 1
+        del self._radio[:-MAX_EVENTS]
 
     def _detect(self, sample: TelemetrySample, distance: float) -> None:
         lap = sample.lap_number + 1
         if self._off_track.update(sample.tyres_out >= OFF_TRACK_TYRES, sample.t):
             self._add(
-                "off_track", "warn", f"Fuera de pista ({sample.tyres_out} ruedas)", lap, distance
+                "off_track",
+                "warn",
+                f"Fuera de pista ({sample.tyres_out} ruedas)",
+                lap,
+                distance,
+                incident_speech("off_track"),
             )
         for wheel, episode in self._lockups.items():
             slip = float(getattr(sample, f"slip_ratio_{wheel}"))
             if episode.update(sample.brake > 0.2 and slip < LOCK_RATIO, sample.t):
-                self._add("lockup", "warn", f"Bloqueo: {WHEEL_NAMES[wheel]}", lap, distance)
+                self._add(
+                    "lockup",
+                    "warn",
+                    f"Bloqueo: {WHEEL_NAMES[wheel]}",
+                    lap,
+                    distance,
+                    incident_speech("lockup", wheel),
+                )
         spinning = sample.throttle > 0.5 and any(
             float(getattr(sample, f"slip_ratio_{w}")) > SPIN_RATIO for w in WHEELS
         )
         if self._spin.update(spinning, sample.t):
-            self._add("wheelspin", "warn", "Patinaste al acelerar", lap, distance)
+            self._add(
+                "wheelspin",
+                "warn",
+                "Patinaste al acelerar",
+                lap,
+                distance,
+                incident_speech("wheelspin"),
+            )
 
-    def _add(self, kind: str, level: str, text: str, lap: int, distance: float) -> None:
+    def _add(
+        self, kind: str, level: str, text: str, lap: int, distance: float, speech: str = ""
+    ) -> None:
         self._events.append(LiveEvent(self._next_event, kind, level, text, lap, round(distance)))
         self._next_event += 1
         del self._events[:-MAX_EVENTS]
+        quiet = self._last_incident is not None and self._now - self._last_incident < INCIDENT_GAP_S
+        if speech and not quiet:
+            self._last_incident = self._now
+            self._say(RadioCall(self._next_radio, "incident", text, speech, lap))
 
     def _distance(self, sample: TelemetrySample) -> float | None:
         if self._length <= 0:
@@ -220,36 +308,66 @@ class LiveTracker:
         return min(1.0, max(0.0, position)) * self._length
 
     def _finish_lap(self, first_of_next: TelemetrySample) -> None:
-        samples = self._lap_samples
+        samples = _until_reset(self._lap_samples)
         self._lap_samples = []
         time_ms = first_of_next.last_lap_ms
         if time_ms < MIN_LAP_MS:
             return
-        previous_best = self._best_ms
+        number = samples[0].lap_number + 1
+        # Recording can start mid-lap or just before the line: judge only what was seen.
+        seen = (samples[-1].t - samples[0].t) / (time_ms / 1000)
+        if seen < 0.5:
+            return
+        reference = self.reference
+        # "New best" only when it beats this session's laps and the reference you race.
+        to_beat = [ms for ms in (self._best_ms, reference.time_ms if reference else 0) if ms]
+        new_best = bool(to_beat) and time_ms < min(to_beat)
         if self._best_ms == 0 or time_ms < self._best_ms:
             self._best_ms = time_ms
-            if previous_best:
-                gain = (previous_best - time_ms) / 1000
-                self._add(
-                    "best_lap",
-                    "good",
-                    f"¡Nueva mejor vuelta! {_lap_text(time_ms)} ({gain:.3f} s más rápida)",
-                    samples[0].lap_number + 1,
-                    0.0,
-                )
-        clean = (
-            samples[0].lap_time_ms <= START_TOLERANCE_MS
-            and not any(s.in_pit for s in samples)
-            and not any(s.tyres_out >= OFF_TRACK_TYRES for s in samples)
-        )
-        beats = self.reference is None or time_ms < self.reference.time_ms
-        if clean and beats and self._length > 0:
-            lap = Lap(
-                samples[0].lap_number + 1, 0, len(samples), time_ms, True, True, False, False, False
+        if new_best:
+            gain = (min(to_beat) - time_ms) / 1000
+            self._add(
+                "best_lap",
+                "good",
+                f"¡Nueva mejor vuelta! {_lap_text(time_ms)} ({gain:.3f} s más rápida)",
+                number,
+                0.0,
             )
+        started_at_line = samples[0].lap_time_ms <= START_TOLERANCE_MS and seen >= WHOLE_LAP
+        off_track = any(s.tyres_out >= OFF_TRACK_TYRES for s in samples)
+        clean = started_at_line and not off_track and not any(s.in_pit for s in samples)
+        self._say(
+            lap_call(
+                self._next_radio,
+                number,
+                time_ms,
+                reference.time_ms if reference else None,
+                new_best,
+                off_track,
+            )
+        )
+        lap = Lap(number, 0, len(samples), time_ms, True, True, False, False, False)
+        if clean and self._length > 0 and reference is not None and reference.trace:
+            try:
+                comparison = compare_laps(lap_trace(samples, lap, self._length), reference.trace)
+            except ValueError:
+                comparison = None
+            tip = biggest_loss(comparison) if comparison is not None else None
+            if tip is not None:
+                self._say(tip_call(self._next_radio, number, tip))
+        beats = reference is None or time_ms < reference.time_ms
+        if clean and beats and self._length > 0:
             self.reference = ReferenceLap.from_lap(
                 samples, lap, self._length, f"esta sesión, vuelta {lap.number}"
             )
+
+
+def _until_reset(samples: list[TelemetrySample]) -> list[TelemetrySample]:
+    """Drop trailing reads where the game already reset the timer but not the lap counter."""
+    for i in range(1, len(samples)):
+        if samples[i].lap_time_ms + START_TOLERANCE_MS < samples[i - 1].lap_time_ms:
+            return samples[:i]
+    return samples
 
 
 def _lap_text(ms: int) -> str:

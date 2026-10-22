@@ -9,6 +9,14 @@ export interface LiveEvent {
   distance_m: number;
 }
 
+export interface RadioCall {
+  id: number;
+  kind: "sector" | "lap" | "best_lap" | "tip" | "incident" | string;
+  text: string;
+  speech: string;
+  lap: number;
+}
+
 export interface LiveFrame {
   lap: number;
   lap_time_ms: number;
@@ -28,6 +36,7 @@ export interface LiveFrame {
   reference_ms: number | null;
   reference_label: string;
   events: LiveEvent[];
+  radio: RadioCall[];
 }
 
 export interface LiveReference {

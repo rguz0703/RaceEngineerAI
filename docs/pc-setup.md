@@ -111,6 +111,12 @@ Deja esa ventana abierta y abre el dashboard en el celular o en la Mac
    en ese circuito y coche (verde vas ganando, rojo perdiendo), velocidad,
    marcha, RPM, acelerador, freno, volante y tu posición en el mapa. Si haces
    una vuelta limpia más rápida, pasa a ser la referencia.
+   Pulsa **Activar radio del ingeniero** para que te hable por voz: tiempo de
+   cada vuelta, cuánto ganas o pierdes en cada sector, la curva donde más
+   perdiste (y si fue por frenar antes, pasar más lento o acelerar tarde) y los
+   incidentes. Suena en el aparato donde tengas la página abierta (la PC con
+   audífonos o el celular). En **Ajustes** eliges qué te dice, la voz y la
+   velocidad. El navegador exige pulsar el botón cada vez que abres la página.
 4. Pulsa **■ Detener**, o simplemente vuelve al menú de AC: la sesión se guarda
    y aparece en la lista, lista para comparar.
 
