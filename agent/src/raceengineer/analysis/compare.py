@@ -97,7 +97,7 @@ def lap_trace(
 
 def lap_distances(lap_samples: Sequence[TelemetrySample], length_m: float) -> list[float]:
     """Distance from the line for each sample of one lap (non-decreasing)."""
-    positions = _unwrap(
+    positions = unwrap_positions(
         [s.normalized_position for s in lap_samples], [s.lap_time_ms for s in lap_samples]
     )
     distance: list[float] = []
@@ -202,7 +202,7 @@ def write_csv(comparison: LapComparison, path: Path) -> None:
             )
 
 
-def _unwrap(positions: list[float], lap_times_ms: list[int]) -> list[float]:
+def unwrap_positions(positions: list[float], lap_times_ms: list[int]) -> list[float]:
     """Make track position continuous across the line.
 
     Just after the line the spline can still read ~1.0, and just before it ~0.0.

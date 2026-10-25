@@ -22,12 +22,18 @@ export interface Lap {
   out_lap: boolean;
   in_lap: boolean;
   off_track: boolean;
+  /** Time in each third of the track; empty when the lap was not recorded whole. */
+  sector_ms: number[];
 }
 
 export interface SessionLaps {
   session: Session;
   laps: Lap[];
   best_clean_lap: number | null;
+  /** Fastest time in each sector among clean laps. */
+  best_sectors_ms: number[];
+  /** The best sectors put together. */
+  ideal_lap_ms: number | null;
 }
 
 export interface Channels {

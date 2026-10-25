@@ -8,7 +8,7 @@ from pathlib import Path
 
 from raceengineer.domain.models import Lap, LapSignals, SessionInfo, SessionRecord, TelemetrySample
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _SAMPLE_COLUMNS = [f.name for f in fields(TelemetrySample)]
 
@@ -24,9 +24,18 @@ CREATE TABLE IF NOT EXISTS laps (
     out_lap    INTEGER NOT NULL,
     in_lap     INTEGER NOT NULL,
     off_track  INTEGER NOT NULL,
+    s1_ms      INTEGER,
+    s2_ms      INTEGER,
+    s3_ms      INTEGER,
     PRIMARY KEY (session_id, start_seq)
 ) WITHOUT ROWID;
 """
+# The lap index as v5 created it; v8 adds the sector columns to it.
+_LAPS_TABLE_V5 = "\n".join(
+    line
+    for line in _LAPS_TABLE.splitlines()
+    if "s1_ms" not in line and "s2_ms" not in line and "s3_ms" not in line
+)
 
 _SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS sessions (
@@ -66,7 +75,10 @@ _SELECT_LAP_SIGNALS = (
     f"SELECT {', '.join(_LAP_SIGNAL_COLUMNS)} FROM samples WHERE session_id = ? ORDER BY seq"
 )
 
-_LAP_COLUMNS = "number, start_seq, end_seq, time_ms, official, complete, out_lap, in_lap, off_track"
+_LAP_COLUMNS = (
+    "number, start_seq, end_seq, time_ms, official, complete, out_lap, in_lap, off_track, "
+    "s1_ms, s2_ms, s3_ms"
+)
 
 
 class SqliteSessionRepository:
@@ -175,8 +187,8 @@ class SqliteSessionRepository:
     def load_lap_signals(self, session_id: int) -> list[LapSignals]:
         rows = self._conn.execute(_SELECT_LAP_SIGNALS, (session_id,)).fetchall()
         return [
-            LapSignals(t, int(lap), int(lap_ms), int(last), bool(pit), int(out))
-            for t, lap, lap_ms, last, pit, out in rows
+            LapSignals(t, int(lap), int(lap_ms), int(last), bool(pit), int(out), pos)
+            for t, lap, lap_ms, last, pit, out, pos in rows
         ]
 
     def save_laps(self, session_id: int, laps: Sequence[Lap]) -> None:
@@ -185,7 +197,7 @@ class SqliteSessionRepository:
             self._conn.execute("DELETE FROM laps WHERE session_id = ?", (session_id,))
             self._conn.executemany(
                 f"INSERT INTO laps (session_id, {_LAP_COLUMNS}) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     (
                         session_id,
@@ -198,6 +210,7 @@ class SqliteSessionRepository:
                         lap.out_lap,
                         lap.in_lap,
                         lap.off_track,
+                        *(lap.sector_ms if len(lap.sector_ms) == 3 else (None, None, None)),
                     )
                     for lap in laps
                 ],
@@ -229,8 +242,22 @@ class SqliteSessionRepository:
                 out_lap=bool(out_lap),
                 in_lap=bool(in_lap),
                 off_track=bool(off_track),
+                sector_ms=(s1, s2, s3) if s1 is not None else (),
             )
-            for number, start, end, time_ms, official, complete, out_lap, in_lap, off_track in rows
+            for (
+                number,
+                start,
+                end,
+                time_ms,
+                official,
+                complete,
+                out_lap,
+                in_lap,
+                off_track,
+                s1,
+                s2,
+                s3,
+            ) in rows
         ]
 
     def _sample_count(self, session_id: int) -> int:
@@ -272,7 +299,7 @@ _MIGRATIONS = [
             _SAMPLE_COLUMNS.index("tyres_out") + 1 : _SAMPLE_COLUMNS.index("fuel") + 1
         ]
     ),
-    "ALTER TABLE sessions ADD COLUMN laps_sample_count INTEGER;\n" + _LAPS_TABLE,
+    "ALTER TABLE sessions ADD COLUMN laps_sample_count INTEGER;\n" + _LAPS_TABLE_V5,
     # v6: AC samples recorded before the fix stored the left wheels' tyre edges
     # swapped (see to_sample); swap them back. UPDATE reads the old values.
     """
@@ -284,6 +311,13 @@ _MIGRATIONS = [
     # v7: lap rules changed (mid-update read at the start, minimum lap time);
     # forget the stored lap indexes so they are rebuilt on next use.
     "UPDATE sessions SET laps_sample_count = NULL;",
+    # v8: sector times in the lap index; rebuild the indexes to fill them in.
+    """
+    ALTER TABLE laps ADD COLUMN s1_ms INTEGER;
+    ALTER TABLE laps ADD COLUMN s2_ms INTEGER;
+    ALTER TABLE laps ADD COLUMN s3_ms INTEGER;
+    UPDATE sessions SET laps_sample_count = NULL;
+    """,
 ]
 
 

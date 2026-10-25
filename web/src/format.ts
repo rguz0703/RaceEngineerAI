@@ -46,3 +46,38 @@ const SIM_NAMES: Record<string, string> = {
 export function simName(sim: string): string {
   return SIM_NAMES[sim] ?? prettyName(sim);
 }
+
+/** 33219 -> "33.219"; sectors over a minute keep the minutes. */
+export function sectorTime(ms: number): string {
+  return ms >= 60000 ? lapTime(ms) : (ms / 1000).toFixed(3);
+}
+
+export type SectorTone = "best" | "gain" | "lose";
+
+function cleanWithSectors(lap: Lap): boolean {
+  return lap.time_ms !== null && lap.complete && !lap.off_track && !lap.out_lap && !lap.in_lap && lap.sector_ms.length === 3;
+}
+
+/**
+ * Timing-screen colours for each clean lap's sectors, in the order they were driven:
+ * purple = best of the session, green = improved your best so far, yellow = slower.
+ */
+export function sectorTones(laps: Lap[], best: number[]): Map<number, SectorTone[]> {
+  const tones = new Map<number, SectorTone[]>();
+  const sofar = [Infinity, Infinity, Infinity];
+  for (const lap of laps) {
+    if (!cleanWithSectors(lap)) continue;
+    tones.set(
+      lap.number,
+      lap.sector_ms.map((t, k) => {
+        let tone: SectorTone = "lose";
+        if (t < sofar[k]) {
+          tone = "gain";
+          sofar[k] = t;
+        }
+        return t === best[k] ? "best" : tone;
+      }),
+    );
+  }
+  return tones;
+}

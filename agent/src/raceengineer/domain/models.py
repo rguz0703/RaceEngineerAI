@@ -86,6 +86,7 @@ class LapSignals(NamedTuple):
     last_lap_ms: int
     in_pit: bool
     tyres_out: int
+    normalized_position: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +110,8 @@ class Lap:
     """Ended in the pit lane."""
     off_track: bool
     """At some point more than two wheels were outside the track limits."""
+    sector_ms: tuple[int, ...] = ()
+    """Time in each third of the track, for complete laps; empty when unknown."""
 
 
 @dataclass(frozen=True, slots=True)

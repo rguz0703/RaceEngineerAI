@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ControlCenter } from "../components/ControlCenter";
 import { RadioPanel } from "../components/RadioPanel";
-import { lapTime, signed } from "../format";
-import { useLive, type LiveEvent, type LiveFrame, type LiveReference } from "../useLive";
+import { lapTime, sectorTime, signed } from "../format";
+import { useLive, type LiveEvent, type LiveFrame, type LiveReference, type LiveSector } from "../useLive";
 import { useRadio, type Radio } from "../useRadio";
 import type { RecordingControl } from "../useRecording";
 
@@ -15,6 +15,13 @@ export function LiveView({ control }: { control: RecordingControl }) {
   const frame = live.frame;
   const calls = frame?.radio ?? NO_CALLS;
   const radio = useRadio(calls);
+  // The live page is the cockpit: a black dash, whatever the rest of the app looks like.
+  useEffect(() => {
+    document.body.dataset.mode = "cockpit";
+    return () => {
+      delete document.body.dataset.mode;
+    };
+  }, []);
   return (
     <>
       <div className="live-head">
@@ -77,8 +84,10 @@ function LivePanel({
   const delta = frame.delta_s;
   const tone = delta === null ? "even" : delta > 0.02 ? "lose" : delta < -0.02 ? "gain" : "even";
   const paused = game === "pause" || game === "replay";
+  const lastCall = frame.radio[frame.radio.length - 1];
   return (
     <div className="live">
+      <ShiftLights rpm={frame.rpm} maxRpm={maxRpm} />
       <AlertBanner events={frame.events} />
       <section className={`panel live-delta ${tone}`}>
         <span className="live-best">
@@ -96,6 +105,17 @@ function LivePanel({
         </span>
         <span className="live-delta-value mono">{delta === null ? "—" : signed(delta, 2)}</span>
       </section>
+
+      <SectorStrip
+        sectors={frame.sectors}
+        share={reference && reference.length_m > 0 ? frame.distance_m / reference.length_m : null}
+      />
+      {lastCall && radio.on && (
+        <p className="radio-line">
+          <span className="label">Radio, vuelta {lastCall.lap}</span>
+          {lastCall.text}
+        </p>
+      )}
 
       <section className="live-grid">
         <div className="panel stat">
@@ -162,6 +182,54 @@ function LivePanel({
         ■ Detener
       </button>
     </div>
+  );
+}
+
+const LIGHTS = ["g", "g", "g", "g", "y", "y", "y", "y", "r", "r", "r", "b"];
+/** The lights start at this share of the highest RPM seen in the session. */
+const LIGHTS_FROM = 0.6;
+
+/** A GT3-style shift-light row: green, yellow, red, then blue at the limit. */
+function ShiftLights({ rpm, maxRpm }: { rpm: number; maxRpm: number }) {
+  const share = maxRpm > 0 ? (rpm / maxRpm - LIGHTS_FROM) / (1 - LIGHTS_FROM) : 0;
+  const lit = Math.max(0, Math.min(LIGHTS.length, Math.round(share * LIGHTS.length)));
+  return (
+    <div className="shift-lights" role="img" aria-label={`Luces de cambio: ${lit} de ${LIGHTS.length}`}>
+      {LIGHTS.map((c, i) => (
+        <i key={i} className={i < lit ? c : undefined} />
+      ))}
+    </div>
+  );
+}
+
+const SECTORS = 3;
+
+/** This lap's sectors in timing colours; the one being driven fills as you go. */
+function SectorStrip({ sectors, share }: { sectors: LiveSector[]; share: number | null }) {
+  return (
+    <section className="sector-strip" aria-label="Sectores de esta vuelta">
+      {Array.from({ length: SECTORS }, (_, k) => {
+        const s = sectors[k];
+        if (!s) {
+          const running = k === sectors.length && share !== null;
+          const fill = running ? Math.max(0, Math.min(1, share * SECTORS - k)) : 0;
+          return (
+            <div key={k} className="sector-box running">
+              <span className="sector-name">Sector {k + 1}</span>
+              <b>{running ? "…" : ""}</b>
+              {running && <span className="sector-fill" style={{ width: `${Math.round(fill * 100)}%` }} />}
+            </div>
+          );
+        }
+        const tone = s.best ? "best" : s.delta_s === null ? "even" : s.delta_s < 0 ? "gain" : "lose";
+        return (
+          <div key={k} className={`sector-box ${tone}`}>
+            <span className="sector-name">Sector {k + 1}</span>
+            <b>{s.delta_s === null ? sectorTime(s.time_ms) : signed(s.delta_s, 2)}</b>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

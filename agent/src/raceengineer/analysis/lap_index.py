@@ -3,6 +3,7 @@
 from dataclasses import replace
 
 from raceengineer.analysis.laps import segment_laps
+from raceengineer.analysis.sectors import with_sectors
 from raceengineer.domain.models import Lap, TelemetrySample
 from raceengineer.domain.ports import SessionRepository
 
@@ -11,7 +12,8 @@ def session_laps(repository: SessionRepository, session_id: int) -> list[Lap]:
     """The session's laps, from the index or by scanning the lap signals once."""
     laps = repository.load_laps(session_id)
     if laps is None:
-        laps = segment_laps(repository.load_lap_signals(session_id))
+        signals = repository.load_lap_signals(session_id)
+        laps = with_sectors(segment_laps(signals), signals)
         repository.save_laps(session_id, laps)
     return laps
 

@@ -1,25 +1,32 @@
-/* "Telemetry pro" look: dark, dense, monospaced numbers. System fonts only (works offline). */
+/* "Pit wall y cockpit": a warm carbon garage for analysis, a black dash for driving.
+   Timing colours mean the same everywhere: purple = best sector of the session,
+   green = improved / gained, yellow = slower than your best, red = incidents only. */
 :root {
-  --bg: #0a0c0f;
-  --surface: #11151a;
-  --surface-2: #171c23;
-  --text: #e6edf3;
-  --muted: #808c9b;
-  --border: #232b35;
-  --grid: #1c232c;
-  --accent: #ff3b30;
-  --gain: #2fd47a;
-  --lose: #ff5252;
-  --warn: #ffb020;
-  --warn-bg: rgba(255, 176, 32, 0.12);
-  --warn-text: #ffc659;
-  --series-target: #38bdf8;
-  --series-ref: #8b95a5;
-  --series-delta: #ffb020;
-  --series-throttle: #2fd47a;
-  --series-brake: #ff5252;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
-  --radius: 6px;
+  --bg: #1f1a17;
+  --surface: #2a2420;
+  --surface-2: #332c27;
+  --text: #f4eadf;
+  --muted: #b3a394;
+  --border: #453b34;
+  --grid: #3a322c;
+  --accent: #ff7a1a;
+  --heat: #ff7a1a;
+  --best: #b88cff;
+  --gain: #4ade80;
+  --lose: #ffd23f;
+  --warn: #ff5468;
+  --warn-bg: rgba(255, 84, 104, 0.14);
+  --warn-text: #ff8a98;
+  --caution: #ffd23f;
+  --caution-bg: rgba(255, 210, 63, 0.12);
+  --series-target: #f4eadf;
+  --series-ref: #9c8e80;
+  --series-delta: #ff7a1a;
+  --series-throttle: #4ade80;
+  --series-brake: #ff5468;
+  --font: "Archivo Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: var(--font);
+  --radius: 4px;
   color-scheme: dark;
 }
 
@@ -31,7 +38,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14.5px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 15px/1.5 var(--font);
+  font-variant-numeric: tabular-nums;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -59,7 +67,7 @@ code {
   gap: 20px;
   height: 52px;
   padding: 0 16px;
-  background: rgba(10, 12, 15, 0.92);
+  background: rgba(31, 26, 23, 0.94);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
@@ -71,8 +79,6 @@ code {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -104,8 +110,6 @@ code {
   height: 100%;
   font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   color: var(--muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
@@ -175,23 +179,26 @@ code {
 }
 
 h1 {
-  font-size: 1.45rem;
-  line-height: 1.25;
-  margin: 6px 0 4px;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.9rem, 5vw, 2.8rem);
+  font-stretch: 125%;
+  font-weight: 850;
+  line-height: 1;
+  margin: 8px 0 8px;
+  letter-spacing: -0.02em;
 }
 
-h2,
 .label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
 h2 {
-  margin: 28px 0 10px;
+  font-size: 1.15rem;
+  font-stretch: 115%;
+  font-weight: 780;
+  color: var(--text);
+  margin: 32px 0 12px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -269,8 +276,6 @@ h2 {
   display: block;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--accent);
 }
 
@@ -321,8 +326,6 @@ table {
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
   background: var(--surface-2);
 }
 
@@ -341,7 +344,7 @@ table {
 }
 
 tr.best td {
-  background: color-mix(in srgb, var(--gain) 8%, transparent);
+  background: color-mix(in srgb, var(--best) 10%, transparent);
 }
 
 .badge {
@@ -355,8 +358,8 @@ tr.best td {
 }
 
 .badge.good {
-  color: var(--gain);
-  border: 1px solid var(--gain);
+  color: var(--best);
+  border: 1px solid var(--best);
 }
 
 .badge.warn {
@@ -396,15 +399,14 @@ tr.best td {
 .stat-label {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
 .stat-value {
   font-family: var(--mono);
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-stretch: 120%;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
@@ -715,8 +717,6 @@ h3 {
   display: inline-block;
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--muted);
   margin-right: 4px;
 }
@@ -819,7 +819,7 @@ tr.changed td:first-child::after {
 }
 
 .control.rec {
-  border-color: var(--lose);
+  border-color: var(--warn);
 }
 
 .control-status {
@@ -847,7 +847,7 @@ tr.changed td:first-child::after {
 }
 
 .dot.rec {
-  background: var(--lose);
+  background: var(--warn);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -902,7 +902,8 @@ tr.changed td:first-child::after {
 }
 
 .rec-button.start {
-  background: var(--lose);
+  background: var(--heat);
+  color: #1f1a17;
 }
 
 .rec-button.stop {
@@ -922,7 +923,7 @@ tr.changed td:first-child::after {
   font-size: 0.85rem;
   font-weight: 600;
   text-decoration: none;
-  color: var(--lose);
+  color: var(--warn);
 }
 
 .rec-pill .dot {
@@ -1018,8 +1019,6 @@ tr.changed td:first-child::after {
 
 .control-title {
   font-family: var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 
@@ -1038,8 +1037,6 @@ select {
 .conn {
   font-family: var(--mono);
   font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
 }
 
 .conn.on {
@@ -1325,8 +1322,6 @@ select {
 .step-title {
   font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -1462,7 +1457,7 @@ select {
 }
 
 .lap-row-bar span.best {
-  background: var(--gain);
+  background: var(--best);
 }
 
 .lap-row-main {
@@ -1726,15 +1721,15 @@ select {
 .m-brake circle,
 .moment-n.m-brake,
 .swatch.m-brake {
-  fill: var(--lose);
-  background: var(--lose);
+  fill: var(--heat);
+  background: var(--heat);
 }
 
 .m-corner circle,
 .moment-n.m-corner,
 .swatch.m-corner {
-  fill: #c084fc;
-  background: #c084fc;
+  fill: #d9b38c;
+  background: #d9b38c;
 }
 
 .m-warn circle,
@@ -2008,4 +2003,315 @@ select {
 
 .radio-log li.tip {
   border-left-color: var(--series-delta);
+}
+
+/* --- Pit wall: wide, heavy numbers for the times that matter --- */
+.brand {
+  font-stretch: 125%;
+  font-weight: 850;
+  font-size: 1.05rem;
+}
+
+.brand b {
+  color: var(--heat);
+}
+
+.best-time,
+.card-best,
+.lap-hero-value,
+.live-best-value,
+.live-delta-value,
+.live-timer {
+  font-stretch: 125%;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+/* Fewer boxes: totals and lap stats read as a sheet with one rule on top. */
+.totals .stat.panel,
+.lap-stats .stat.panel {
+  background: none;
+  border: 0;
+  border-top: 2px solid var(--heat);
+  border-radius: 0;
+  padding-left: 0;
+}
+
+/* --- Session as a timing sheet --- */
+.sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px 40px;
+  margin-bottom: 18px;
+}
+
+.sheet-head p {
+  margin: 0;
+}
+
+.ideal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  max-width: 20rem;
+}
+
+.ideal-time {
+  font-stretch: 125%;
+  font-weight: 850;
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--best);
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 640px) {
+  .ideal {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+.sector-legend .tone {
+  font-weight: 700;
+}
+
+.tone.best,
+.timing td.sector.best {
+  color: var(--best);
+}
+
+.tone.gain,
+.timing td.sector.gain {
+  color: var(--gain);
+}
+
+.tone.lose {
+  color: var(--lose);
+}
+
+.timing thead th {
+  border-bottom: 2px solid var(--heat);
+}
+
+.timing td.sector {
+  position: relative;
+  font-weight: 650;
+}
+
+.timing td.sector::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 9px;
+  bottom: 9px;
+  width: 4px;
+}
+
+.timing td.sector.best::before {
+  background: var(--best);
+}
+
+.timing td.sector.gain::before {
+  background: var(--gain);
+}
+
+.timing td.sector.lose::before {
+  background: var(--lose);
+}
+
+.timing td.sector.lose,
+.timing td.sector:not(.best):not(.gain):not(.lose) {
+  font-weight: 450;
+}
+
+.timing td.lap-time a {
+  font-stretch: 115%;
+  font-weight: 750;
+}
+
+.timing tr.best td.lap-time a {
+  color: var(--best);
+}
+
+.timing tr.void td {
+  color: var(--muted);
+}
+
+.timing tr.void td.lap-time a {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+.flag::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--warn);
+}
+
+.timing td.sector.lose {
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .timing .kind-col {
+    display: none;
+  }
+
+  .timing th,
+  .timing td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .timing td.sector {
+    font-size: 0.85rem;
+    padding-left: 12px;
+  }
+
+  .timing td.sector::before {
+    left: 4px;
+    width: 3px;
+  }
+}
+
+/* --- Cockpit: the live page is a black race-car dash --- */
+body[data-mode="cockpit"] {
+  --bg: #000;
+  --surface: #0d0d0d;
+  --surface-2: #161616;
+  --border: #272727;
+  --grid: #1d1d1d;
+  --text: #fff;
+  --muted: #8f949a;
+  --gain: #3ddc6e;
+  --lose: #ffd60a;
+  --best: #b37bff;
+  --warn: #ff4d5e;
+  background: #000;
+}
+
+body[data-mode="cockpit"] .topbar {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.shift-lights {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-width: 560px;
+  margin: 2px auto 4px;
+  align-self: center;
+}
+
+.shift-lights i {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #1a1a1a;
+}
+
+.shift-lights i.g {
+  background: #3ddc6e;
+}
+
+.shift-lights i.y {
+  background: #ffd60a;
+}
+
+.shift-lights i.r {
+  background: #ff4d5e;
+}
+
+.shift-lights i.b {
+  background: #4da3ff;
+}
+
+.live-delta-value {
+  font-size: clamp(4.2rem, 17vw, 7rem);
+  line-height: 0.95;
+}
+
+.sector-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.sector-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: #000;
+  overflow: hidden;
+}
+
+.sector-box .sector-name {
+  font-size: 0.8rem;
+  font-weight: 650;
+  opacity: 0.75;
+}
+
+.sector-box b {
+  font-stretch: 120%;
+  font-weight: 850;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  min-height: 1.2em;
+}
+
+.sector-box.best {
+  background: var(--best);
+}
+
+.sector-box.gain {
+  background: var(--gain);
+}
+
+.sector-box.lose {
+  background: var(--lose);
+}
+
+.sector-box.even {
+  background: #d9d9d9;
+}
+
+.sector-box.running {
+  color: var(--text);
+}
+
+.sector-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--muted);
+}
+
+.radio-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid #4da3ff;
+  font-size: 1.05rem;
 }

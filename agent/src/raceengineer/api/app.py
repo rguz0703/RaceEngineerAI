@@ -18,6 +18,7 @@ from raceengineer.analysis.diagnosis import diagnose, lap_data
 from raceengineer.analysis.highlights import lap_highlights
 from raceengineer.analysis.laps import best_clean_lap, default_reference
 from raceengineer.analysis.overview import overview
+from raceengineer.analysis.sectors import best_sectors, ideal_lap_ms
 from raceengineer.analysis.tracks import summarize_tracks
 from raceengineer.api.schemas import (
     BestLapOut,
@@ -201,6 +202,8 @@ def create_app(
             session=_session_out(session.record, session.laps),
             laps=[_lap_out(lap) for lap in session.laps],
             best_clean_lap=best.number if best else None,
+            best_sectors_ms=list(best_sectors(session.laps)),
+            ideal_lap_ms=ideal_lap_ms(session.laps),
         )
 
     @app.get("/api/sessions/{session_id}/laps/{number}/highlights")
@@ -402,6 +405,7 @@ def _lap_out(lap: Lap) -> LapOut:
         out_lap=lap.out_lap,
         in_lap=lap.in_lap,
         off_track=lap.off_track,
+        sector_ms=list(lap.sector_ms),
     )
 
 

@@ -130,9 +130,9 @@ def test_v6_fixes_left_tyre_edges_of_ac_sessions_only(tmp_path: Path) -> None:
         repo.append_samples(other, [sample])
     conn = sqlite3.connect(db)
     conn.execute("UPDATE sessions SET sim = 'assetto_corsa' WHERE id = ?", (ac,))
-    conn.execute("PRAGMA user_version = 5")
     conn.commit()
     conn.close()
+    _downgrade_laps_table(db, 5)
 
     with SqliteSessionRepository(db) as repo:
         [fixed] = repo.load_samples(ac)
@@ -152,10 +152,34 @@ def test_v7_rebuilds_lap_indexes(tmp_path: Path) -> None:
         repo.append_samples(sid, list(FakeSource(laps=2).samples()))
         session_laps(repo, sid)
         assert repo.load_laps(sid) is not None
-    conn = sqlite3.connect(db)
-    conn.execute("PRAGMA user_version = 6")
-    conn.commit()
-    conn.close()
+    _downgrade_laps_table(db, 6)
 
     with SqliteSessionRepository(db) as repo:
         assert repo.load_laps(sid) is None
+
+
+def _downgrade_laps_table(db: Path, version: int) -> None:
+    """Make the file look like an older version: no sector columns in the lap index."""
+    conn = sqlite3.connect(db)
+    for column in ("s1_ms", "s2_ms", "s3_ms"):
+        conn.execute(f"ALTER TABLE laps DROP COLUMN {column}")
+    conn.execute(f"PRAGMA user_version = {version}")
+    conn.commit()
+    conn.close()
+
+
+def test_v8_adds_sector_times_to_the_lap_index(tmp_path: Path) -> None:
+    from raceengineer.analysis.lap_index import session_laps
+
+    db = tmp_path / "v7.sqlite"
+    with SqliteSessionRepository(db) as repo:
+        sid = repo.create_session(INFO, START)
+        repo.append_samples(sid, list(FakeSource(laps=3).samples()))
+        session_laps(repo, sid)
+    _downgrade_laps_table(db, 7)
+
+    with SqliteSessionRepository(db) as repo:
+        assert repo.load_laps(sid) is None  # rebuilt on next use
+        laps = session_laps(repo, sid)
+        assert len(laps[0].sector_ms) == 3
+        assert repo.load_laps(sid) == laps
