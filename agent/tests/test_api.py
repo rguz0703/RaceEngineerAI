@@ -49,6 +49,10 @@ def test_session_laps(db: Path) -> None:
     assert [lap["number"] for lap in body["laps"]] == [1, 2, 3]
     assert body["laps"][2]["time_ms"] is None
     assert body["best_clean_lap"] in (1, 2)
+    assert len(body["laps"][0]["sector_ms"]) == 3
+    assert body["laps"][2]["sector_ms"] == []
+    assert len(body["best_sectors_ms"]) == 3
+    assert body["ideal_lap_ms"] == sum(body["best_sectors_ms"])
 
 
 def test_compare_defaults_to_best_clean_lap(db: Path) -> None:

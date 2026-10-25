@@ -104,6 +104,20 @@ REARM_S = 0.5
 
 
 @dataclass(frozen=True, slots=True)
+class LiveSector:
+    """One finished sector of the current lap."""
+
+    number: int
+    """1 to 3."""
+    time_ms: int
+    delta_s: float | None
+    """Against the same sector of the reference lap; None without one."""
+    best: bool
+    """The fastest this sector has been driven in this session (on track) and no slower
+    than the reference's."""
+
+
+@dataclass(frozen=True, slots=True)
 class LiveFrame:
     lap: int
     lap_time_ms: int
@@ -127,6 +141,10 @@ class LiveFrame:
     """Most recent last, at most MAX_EVENTS."""
     radio: list[RadioCall]
     """What the engineer said, most recent last, at most MAX_EVENTS."""
+    sectors: list[LiveSector]
+    """Sectors finished so far in this lap (only for laps started at the line)."""
+    last_sectors: list[LiveSector]
+    """All three sectors of the previous lap, when it was timed."""
 
 
 class _Episode:
@@ -175,6 +193,11 @@ class LiveTracker:
         self._last_incident: float | None = None
         self._sector = 0
         self._sector_start: float | None = None
+        self._sector_start_ms = 0
+        self._timed = False
+        self._lap_sectors: list[LiveSector] = []
+        self._last_sectors: list[LiveSector] = []
+        self._best_sectors: list[int] = [0] * SECTORS
 
     @property
     def frame(self) -> LiveFrame | None:
@@ -195,7 +218,7 @@ class LiveTracker:
             delta = sample.lap_time_ms / 1000 - self.reference.time_at(distance)
         if starting:
             self._start_sectors(sample, distance, delta)
-        elif delta is not None and distance is not None:
+        elif distance is not None:
             self._sectors(sample, distance, delta)
         self._frame = LiveFrame(
             lap=sample.lap_number + 1,
@@ -217,35 +240,69 @@ class LiveTracker:
             reference_label=self.reference.label if self.reference else "",
             events=list(self._events),
             radio=list(self._radio),
+            sectors=list(self._lap_sectors),
+            last_sectors=list(self._last_sectors),
         )
         return self._frame
 
     def _start_sectors(
         self, sample: TelemetrySample, distance: float | None, delta: float | None
     ) -> None:
-        """Sector calls only for laps started at the line with a reference to race."""
-        at_line = sample.lap_time_ms <= START_TOLERANCE_MS and not sample.in_pit
-        self._sector_start = delta if at_line and delta is not None else None
+        """Sectors are timed only for laps started at the line."""
+        self._timed = sample.lap_time_ms <= START_TOLERANCE_MS and not sample.in_pit
+        self._sector_start = delta if self._timed else None
+        self._sector_start_ms = 0
+        self._lap_sectors = []
         self._sector = 0
-        if self._sector_start is None and distance is not None and self._length > 0:
+        if not self._timed and distance is not None and self._length > 0:
             # Skip the sectors already behind us.
             self._sector = min(SECTORS, int(distance / self._length * SECTORS) + 1)
 
-    def _sectors(self, sample: TelemetrySample, distance: float, delta: float) -> None:
+    def _sectors(self, sample: TelemetrySample, distance: float, delta: float | None) -> None:
         while (
             self._sector < SECTORS - 1 and distance >= self._length * (self._sector + 1) / SECTORS
         ):
-            if self._sector_start is not None:
-                self._say(
-                    sector_call(
-                        self._next_radio,
-                        sample.lap_number + 1,
-                        self._sector,
-                        delta - self._sector_start,
-                    )
+            if self._timed:
+                gap = (
+                    delta - self._sector_start
+                    if delta is not None and self._sector_start is not None
+                    else None
                 )
+                self._close_sector(
+                    sample.lap_time_ms - self._sector_start_ms, gap, self._lap_samples
+                )
+                if gap is not None:
+                    self._say(
+                        sector_call(self._next_radio, sample.lap_number + 1, self._sector, gap)
+                    )
             self._sector_start = delta
+            self._sector_start_ms = sample.lap_time_ms
             self._sector += 1
+
+    def _close_sector(
+        self, time_ms: int, gap: float | None, lap_samples: list[TelemetrySample]
+    ) -> None:
+        """Record the sector just finished; it counts for the best only while on track."""
+        k = len(self._lap_sectors)
+        on_track = not any(s.tyres_out >= OFF_TRACK_TYRES or s.in_pit for s in lap_samples)
+        if on_track and (self._best_sectors[k] == 0 or time_ms < self._best_sectors[k]):
+            self._best_sectors[k] = time_ms
+        # Purple only when it is also no slower than the lap you are racing.
+        best = on_track and time_ms == self._best_sectors[k] and (gap is None or gap <= 0)
+        self._lap_sectors.append(LiveSector(k + 1, time_ms, gap, best))
+
+    def _finish_sectors(
+        self, samples: list[TelemetrySample], time_ms: int, reference: ReferenceLap | None
+    ) -> None:
+        """Time the last sector at the line; the lap's sectors stay visible as the last lap's."""
+        self._last_sectors = []
+        if not self._timed or len(self._lap_sectors) != SECTORS - 1:
+            return
+        gap = None
+        if reference is not None and self._sector_start is not None:
+            gap = (time_ms - reference.time_ms) / 1000 - self._sector_start
+        self._close_sector(time_ms - self._sector_start_ms, gap, samples)
+        self._last_sectors = list(self._lap_sectors)
 
     def _say(self, call: RadioCall) -> None:
         self._radio.append(call)
@@ -336,6 +393,10 @@ class LiveTracker:
         started_at_line = samples[0].lap_time_ms <= START_TOLERANCE_MS and seen >= WHOLE_LAP
         off_track = any(s.tyres_out >= OFF_TRACK_TYRES for s in samples)
         clean = started_at_line and not off_track and not any(s.in_pit for s in samples)
+        if started_at_line:
+            self._finish_sectors(samples, time_ms, reference)
+        else:
+            self._last_sectors = []
         self._say(
             lap_call(
                 self._next_radio,

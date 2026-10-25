@@ -133,3 +133,11 @@ F7–F8 (2026-10-21): "radio del ingeniero" con reglas propias en `capture/engin
 5. Validar la calidad de las recomendaciones.
 6. Empaquetado en Windows (tamaño, antivirus) y requisitos de Steam.
 7. Marcas y derechos de autor (logos de juegos, contenido de libros).
+
+
+## Estilo visual: "Pit wall y cockpit" (2026-10-24)
+
+- Dos modos con el mismo lenguaje. El garaje (análisis) usa carbono cálido (#1F1A17), texto blanco cálido y naranja papaya (#FF7A1A) para la marca y la pestaña activa. El cockpit (pestaña En vivo) es negro puro, como el display de un coche.
+- Colores de cronometraje con un único significado: morado = mejor sector de la sesión, verde = mejoraste o ganas tiempo, amarillo = más lento que tu mejor, rojo = solo incidentes (fuera de pista) y grabación.
+- Tipografía Archivo (OFL), incluida en el build para funcionar sin internet; los tiempos van en su ancho máximo (font-stretch 125 %).
+- Sectores: tercios de la vuelta. Los tiempos por sector se guardan en el índice de vueltas (esquema v8); la vuelta ideal es la suma de los mejores sectores de las vueltas limpias. En vivo, el sector sale morado solo si es el mejor de la grabación y no más lento que la referencia.

@@ -29,12 +29,18 @@ class LapOut(BaseModel):
     out_lap: bool
     in_lap: bool
     off_track: bool
+    sector_ms: list[int]
+    """Time in each third of the track; empty when the lap was not recorded whole."""
 
 
 class SessionLapsOut(BaseModel):
     session: SessionOut
     laps: list[LapOut]
     best_clean_lap: int | None
+    best_sectors_ms: list[int]
+    """Fastest time in each sector among clean laps."""
+    ideal_lap_ms: int | None
+    """The best sectors put together."""
 
 
 class ChannelsOut(BaseModel):

@@ -17,6 +17,15 @@ export interface RadioCall {
   lap: number;
 }
 
+export interface LiveSector {
+  number: number;
+  time_ms: number;
+  /** Against the same sector of the reference lap. */
+  delta_s: number | null;
+  /** Fastest this sector has been driven in this session. */
+  best: boolean;
+}
+
 export interface LiveFrame {
   lap: number;
   lap_time_ms: number;
@@ -37,6 +46,8 @@ export interface LiveFrame {
   reference_label: string;
   events: LiveEvent[];
   radio: RadioCall[];
+  sectors: LiveSector[];
+  last_sectors: LiveSector[];
 }
 
 export interface LiveReference {
